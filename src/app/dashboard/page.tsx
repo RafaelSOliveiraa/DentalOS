@@ -122,70 +122,7 @@ function ProgressBar({
 
 // ── Tooth icon ────────────────────────────────────────────────────────────────
 
-function ToothSvg({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={Math.round(size * 1.17)} viewBox="0 0 36 42" fill="none">
-      <path
-        d="M18 2C13.5 2 10 4.5 8 7C6.5 5.5 4.5 5 3 6C1 7.5 1 10 2 12C3 14 4 15 4 18C4 22 5 26 6 29C7 32 8 38 11 38C13 38 13.5 34 14.5 31C15.5 28 16 26 18 26C20 26 20.5 28 21.5 31C22.5 34 23 38 25 38C28 38 29 32 30 29C31 26 32 22 32 18C32 15 33 14 34 12C35 10 35 7.5 33 6C31.5 5 29.5 5.5 28 7C26 4.5 22.5 2 18 2Z"
-        fill="#1D9E75"
-      />
-      <path d="M12 9C13.5 8 16 7.5 18 8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-
-const navItems = [
-  { Icon: LayoutDashboard, label: "Dashboard",      href: "/dashboard",              active: true  },
-  { Icon: CalendarDays,    label: "Agenda",         href: "/dashboard/agenda",       active: false },
-  { Icon: Users,           label: "Pacientes",      href: "/dashboard/pacientes",    active: false },
-  { Icon: DollarSign,      label: "Financeiro",     href: "/dashboard/financeiro",   active: false },
-  { Icon: Package,         label: "Estoque",        href: "/dashboard/estoque",      active: false },
-  { Icon: BarChart2,       label: "Relatórios",     href: "/dashboard/relatorios",   active: false },
-  { Icon: BrainCircuit,    label: "Assistente IA",  href: "/dashboard/ia",           active: false },
-  { Icon: Settings,        label: "Configurações",  href: "/dashboard/configuracoes",active: false },
-];
-
-function Sidebar() {
-  return (
-    <aside className="fixed inset-y-0 left-0 w-60 bg-[#0E1120] border-r border-white/[0.06] flex flex-col z-30">
-      <div className="flex items-center gap-2.5 px-5 h-16 border-b border-white/[0.06] shrink-0">
-        <ToothSvg size={24} />
-        <span className="text-base font-bold text-white tracking-tight">DentalOS</span>
-      </div>
-
-      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ Icon, label, href, active }) => (
-          <a
-            key={label}
-            href={href}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              active
-                ? "bg-[#1D9E75]/10 text-[#1D9E75]"
-                : "text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]"
-            }`}
-          >
-            <Icon size={16} />
-            {label}
-          </a>
-        ))}
-      </nav>
-
-      <div className="p-3 border-t border-white/[0.06] shrink-0">
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="w-8 h-8 rounded-full bg-[#1D9E75]/20 flex items-center justify-center text-[#1D9E75] text-xs font-bold shrink-0">
-            RA
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm text-white font-medium truncate">Rafael</p>
-            <p className="text-xs text-gray-500 truncate">Administrador</p>
-          </div>
-        </div>
-      </div>
-    </aside>
-  );
-}
+import { Sidebar } from "@/components/Sidebar";
 
 // ── Topbar ────────────────────────────────────────────────────────────────────
 
@@ -637,7 +574,7 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-[#0C0F1A]">
       <Sidebar />
 
-      <div className="flex-1 ml-60 flex flex-col min-h-screen">
+      <div className="flex-1 ml-16 flex flex-col min-h-screen">
         <Topbar />
 
         <main className="flex-1 p-6 space-y-5">

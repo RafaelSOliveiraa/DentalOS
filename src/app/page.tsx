@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { saveProfile, PROFILES } from "@/lib/auth/profiles";
 
 function ToothIcon() {
   return (
@@ -39,6 +40,7 @@ export default function LoginPage() {
     // Simula um pequeno delay de autenticação
     setTimeout(() => {
       if (email === VALID_EMAIL && password === VALID_PASSWORD) {
+        saveProfile("ADMIN");
         router.push("/dashboard");
       } else {
         setError("Email ou senha incorretos. Tente novamente.");
@@ -167,6 +169,55 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Demo access */}
+          <div className="mt-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex-1 h-px bg-white/[0.06]" />
+              <span className="text-xs text-gray-600 font-medium">Acesso de demonstração</span>
+              <div className="flex-1 h-px bg-white/[0.06]" />
+            </div>
+            <div className="flex flex-col gap-2">
+              {(
+                [
+                  { type: "ADMIN",        bg: "#1D9E75", ring: "#1D9E75" },
+                  { type: "RECEPCIONISTA",bg: "#5B8DEF", ring: "#5B8DEF" },
+                  { type: "DENTISTA",     bg: "#9B6DFF", ring: "#9B6DFF" },
+                ] as const
+              ).map(({ type, bg, ring }) => {
+                const p = PROFILES[type];
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => { saveProfile(type); router.push(p.defaultPath); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border"
+                    style={{
+                      background: `${bg}12`,
+                      borderColor: `${ring}30`,
+                      color: bg,
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${bg}22`; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${bg}12`; }}
+                  >
+                    <span
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                      style={{ background: `${bg}25`, color: bg }}
+                    >
+                      {p.initials}
+                    </span>
+                    <span className="text-left flex-1">
+                      <span className="font-semibold">{p.name}</span>
+                      <span className="ml-2 opacity-60 text-xs">{p.role}</span>
+                    </span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity={0.5}>
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

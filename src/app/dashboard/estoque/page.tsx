@@ -97,42 +97,7 @@ function fmtBRLInt(v: number) { return `R$ ${v.toLocaleString("pt-BR", { minimum
 function qtyPct(item: InventoryItem) { return item.minQty > 0 ? Math.min(100, Math.round((item.currentQty / item.minQty) * 100)) : 100; }
 
 /* ─── SVG ─── */
-function ToothSvg({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-      <path d="M22 8C16 8 10 13 10 20c0 4 1.5 7 3 10l4 20c.5 3 2 4 3.5 4s2.5-1 3-3L26 38c.5-2 1.5-3 3-3h6c1.5 0 2.5 1 3 3l2.5 13c.5 2 1.5 3 3 3s3-1 3.5-4l4-20c1.5-3 3-6 3-10 0-7-6-12-12-12-3 0-5.5 1.5-7 3C33.5 9.5 32 9 32 9s-1.5.5-2.5 1.5C28 9 25.5 8 22 8z" fill="#1D9E75" opacity="0.9" />
-    </svg>
-  );
-}
-
-/* ─── Sidebar ─── */
-const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: "Dashboard",    href: "/dashboard" },
-  { icon: CalendarDays,    label: "Agenda",        href: "/dashboard/agenda" },
-  { icon: Users,           label: "Pacientes",     href: "/dashboard/pacientes" },
-  { icon: DollarSign,      label: "Financeiro",    href: "/dashboard/financeiro" },
-  { icon: Package,         label: "Estoque",       href: "/dashboard/estoque" },
-  { icon: BarChart2,       label: "Relatórios",    href: "/dashboard/relatorios" },
-  { icon: BrainCircuit,    label: "Assistente IA", href: "/dashboard/ia" },
-  { icon: Settings,        label: "Configurações", href: "/dashboard/configuracoes" },
-];
-
-function Sidebar() {
-  return (
-    <aside className="fixed left-0 top-0 h-full w-16 flex flex-col items-center py-6 gap-2 border-r border-white/[0.06] z-30" style={{ background: "#0C0F1A" }}>
-      <div className="mb-4"><ToothSvg size={28} /></div>
-      {NAV_ITEMS.map(({ icon: Icon, label, href }) => {
-        const active = href === "/dashboard/estoque";
-        return (
-          <a key={label} href={href} title={label}
-            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${active ? "bg-[#1D9E75]/15 text-[#1D9E75]" : "text-white/40 hover:text-white/80 hover:bg-white/[0.06]"}`}>
-            <Icon size={18} />
-          </a>
-        );
-      })}
-    </aside>
-  );
-}
+import { Sidebar } from "@/components/Sidebar";
 
 /* ─── KPI Card ─── */
 function KpiCard({ icon: Icon, label, value, sub, accent }: { icon: React.ElementType; label: string; value: string; sub?: string; accent?: string }) {
