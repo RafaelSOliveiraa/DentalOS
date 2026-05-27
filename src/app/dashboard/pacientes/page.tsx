@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import {
   LayoutDashboard, CalendarDays, Users, DollarSign, Package,
-  Settings, Search, Plus, X, UserCheck, UserX, Stethoscope,
+  Settings, BarChart2, BrainCircuit, Search, Plus, X, UserCheck, UserX, Stethoscope,
   Phone, Mail, Calendar, ChevronUp, ChevronDown, MoreHorizontal,
   CalendarPlus, FileText, Trash2, Download, RotateCcw, ChevronLeft,
   ChevronRight, Eye, AlertCircle, Sparkles, TrendingUp, CreditCard,
@@ -162,7 +162,9 @@ const NAV_ITEMS = [
   { icon: CalendarDays,    label: "Agenda",       href: "/dashboard/agenda" },
   { icon: Users,           label: "Pacientes",    href: "/dashboard/pacientes" },
   { icon: DollarSign,      label: "Financeiro",   href: "/dashboard/financeiro" },
-  { icon: Package,         label: "Estoque",      href: "/dashboard/estoque" },
+  { icon: Package,         label: "Estoque",       href: "/dashboard/estoque" },
+  { icon: BarChart2,       label: "Relatórios",    href: "/dashboard/relatorios" },
+  { icon: BrainCircuit,    label: "Assistente IA", href: "/dashboard/ia" },
   { icon: Settings,        label: "Configurações", href: "/dashboard/configuracoes" },
 ];
 

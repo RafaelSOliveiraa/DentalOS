@@ -7,7 +7,7 @@ import {
   AlertTriangle, Clock, CheckCircle, ArrowUp, ArrowDown, History,
   Truck, ShoppingCart, RefreshCw, MapPin, Boxes, Tag, Wrench,
   PackagePlus, PackageX, ListChecks, CalendarClock,
-  Shield, ClipboardList,
+  Shield, ClipboardList, BarChart2, BrainCircuit,
 } from "lucide-react";
 
 /* ─── Types ─── */
@@ -112,6 +112,8 @@ const NAV_ITEMS = [
   { icon: Users,           label: "Pacientes",     href: "/dashboard/pacientes" },
   { icon: DollarSign,      label: "Financeiro",    href: "/dashboard/financeiro" },
   { icon: Package,         label: "Estoque",       href: "/dashboard/estoque" },
+  { icon: BarChart2,       label: "Relatórios",    href: "/dashboard/relatorios" },
+  { icon: BrainCircuit,    label: "Assistente IA", href: "/dashboard/ia" },
   { icon: Settings,        label: "Configurações", href: "/dashboard/configuracoes" },
 ];
 

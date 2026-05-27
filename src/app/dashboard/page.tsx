@@ -32,6 +32,8 @@ import {
   CalendarCheck,
   UserX,
   Receipt,
+  BarChart2,
+  BrainCircuit,
 } from "lucide-react";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -135,12 +137,14 @@ function ToothSvg({ size = 32 }: { size?: number }) {
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 const navItems = [
-  { Icon: LayoutDashboard, label: "Dashboard",      active: true  },
-  { Icon: CalendarDays,    label: "Agenda",         active: false },
-  { Icon: Users,           label: "Pacientes",      active: false },
-  { Icon: DollarSign,      label: "Financeiro",     active: false },
-  { Icon: Package,         label: "Estoque",        active: false },
-  { Icon: Settings,        label: "Configurações",  active: false },
+  { Icon: LayoutDashboard, label: "Dashboard",      href: "/dashboard",              active: true  },
+  { Icon: CalendarDays,    label: "Agenda",         href: "/dashboard/agenda",       active: false },
+  { Icon: Users,           label: "Pacientes",      href: "/dashboard/pacientes",    active: false },
+  { Icon: DollarSign,      label: "Financeiro",     href: "/dashboard/financeiro",   active: false },
+  { Icon: Package,         label: "Estoque",        href: "/dashboard/estoque",      active: false },
+  { Icon: BarChart2,       label: "Relatórios",     href: "/dashboard/relatorios",   active: false },
+  { Icon: BrainCircuit,    label: "Assistente IA",  href: "/dashboard/ia",           active: false },
+  { Icon: Settings,        label: "Configurações",  href: "/dashboard/configuracoes",active: false },
 ];
 
 function Sidebar() {
@@ -152,10 +156,10 @@ function Sidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ Icon, label, active }) => (
+        {navItems.map(({ Icon, label, href, active }) => (
           <a
             key={label}
-            href="#"
+            href={href}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
               active
                 ? "bg-[#1D9E75]/10 text-[#1D9E75]"

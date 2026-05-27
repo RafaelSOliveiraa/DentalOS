@@ -28,6 +28,8 @@ import {
   Download,
   CheckCircle2,
   Wallet,
+  BarChart2,
+  BrainCircuit,
 } from "lucide-react";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -130,11 +132,13 @@ function ToothSvg({ size = 32 }: { size?: number }) {
 
 const navItems = [
   { Icon: LayoutDashboard, label: "Dashboard",     href: "/dashboard" },
-  { Icon: CalendarDays,    label: "Agenda",         href: "#" },
-  { Icon: Users,           label: "Pacientes",      href: "#" },
+  { Icon: CalendarDays,    label: "Agenda",         href: "/dashboard/agenda" },
+  { Icon: Users,           label: "Pacientes",      href: "/dashboard/pacientes" },
   { Icon: DollarSign,      label: "Financeiro",     href: "/dashboard/financeiro" },
-  { Icon: Package,         label: "Estoque",        href: "#" },
-  { Icon: Settings,        label: "Configurações",  href: "#" },
+  { Icon: Package,         label: "Estoque",        href: "/dashboard/estoque" },
+  { Icon: BarChart2,       label: "Relatórios",     href: "/dashboard/relatorios" },
+  { Icon: BrainCircuit,    label: "Assistente IA",  href: "/dashboard/ia" },
+  { Icon: Settings,        label: "Configurações",  href: "/dashboard/configuracoes" },
 ];
 
 function Sidebar() {
