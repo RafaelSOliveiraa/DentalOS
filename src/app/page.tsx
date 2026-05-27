@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 function ToothIcon() {
   return (
@@ -19,13 +20,31 @@ function ToothIcon() {
   );
 }
 
+const VALID_EMAIL    = "admin@dentalos.com.br";
+const VALID_PASSWORD = "DentalOS2026";
+
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const router = useRouter();
+  const [email, setEmail]             = useState("");
+  const [password, setPassword]       = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError]             = useState("");
+  const [loading, setLoading]         = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // Simula um pequeno delay de autenticação
+    setTimeout(() => {
+      if (email === VALID_EMAIL && password === VALID_PASSWORD) {
+        router.push("/dashboard");
+      } else {
+        setError("Email ou senha incorretos. Tente novamente.");
+        setLoading(false);
+      }
+    }, 600);
   }
 
   return (
@@ -62,7 +81,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setError(""); }}
                 placeholder="seu@email.com"
                 autoComplete="email"
                 required
@@ -79,7 +98,7 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
                   placeholder="••••••••"
                   autoComplete="current-password"
                   required
@@ -118,12 +137,34 @@ export default function LoginPage() {
               </a>
             </div>
 
+            {/* Mensagem de erro */}
+            {error && (
+              <div className="flex items-center gap-2 bg-[#E24B4A]/10 border border-[#E24B4A]/25 rounded-xl px-4 py-3">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E24B4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <p className="text-sm text-[#E24B4A]">{error}</p>
+              </div>
+            )}
+
             {/* Botão entrar */}
             <button
               type="submit"
-              className="w-full bg-[#1D9E75] hover:bg-[#22b585] text-white font-semibold py-3 rounded-xl transition-all duration-200 text-sm tracking-wide shadow-lg shadow-[#1D9E75]/20 hover:shadow-[#1D9E75]/30 mt-1"
+              disabled={loading}
+              className="w-full bg-[#1D9E75] hover:bg-[#22b585] disabled:opacity-70 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all duration-200 text-sm tracking-wide shadow-lg shadow-[#1D9E75]/20 hover:shadow-[#1D9E75]/30 mt-1 flex items-center justify-center gap-2"
             >
-              Entrar
+              {loading ? (
+                <>
+                  <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Verificando…
+                </>
+              ) : (
+                "Entrar"
+              )}
             </button>
           </form>
         </div>
