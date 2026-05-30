@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, CalendarDays, Users, DollarSign, Package,
   Settings, BarChart2, BrainCircuit, Search, Plus, X, UserCheck, UserX, Stethoscope,
@@ -154,6 +155,7 @@ function SortTh({ children, col, sortCol, sortDir, onSort }: {
 /* ─── Row menu ─── */
 function RowMenu({ patient, onDetail }: { patient: Patient; onDetail: () => void }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)} className="p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.06] transition-colors">
@@ -167,7 +169,7 @@ function RowMenu({ patient, onDetail }: { patient: Patient; onDetail: () => void
               { icon: Eye,        label: "Ver detalhes",  action: () => { onDetail(); setOpen(false); } },
               { icon: CalendarPlus, label: "Agendar consulta", action: () => setOpen(false) },
               { icon: CreditCard, label: "Registrar pgto.", action: () => setOpen(false) },
-              { icon: FileText,   label: "Ver prontuário", action: () => setOpen(false) },
+              { icon: FileText,   label: "Ver prontuário", action: () => { router.push(`/dashboard/pacientes/${patient.id}/prontuario`); setOpen(false); } },
               { icon: Trash2,     label: "Remover paciente", action: () => setOpen(false), danger: true },
             ].map(({ icon: Icon, label, action, danger }) => (
               <button key={label} onClick={action}
