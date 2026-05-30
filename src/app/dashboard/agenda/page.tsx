@@ -302,6 +302,8 @@ function NewAppointmentModal({
       const endH    = String(Math.floor(endMin / 60)).padStart(2, "0");
       const endM    = String(endMin % 60).padStart(2, "0");
 
+      const data_hora = new Date(`${selDate}T${selTime}:00`).toISOString();
+
       return createAgendamento({
         paciente_id:       selPatient?.id    ?? null,
         paciente_nome:     selPatient?.nome   ?? null,
@@ -309,7 +311,7 @@ function NewAppointmentModal({
         data:              selDate,
         hora:              selTime,
         hora_fim:          `${endH}:${endM}`,
-        data_hora:         null,
+        data_hora,
         duracao_minutos:   Number(duration),
         procedimento:      procedure,
         tipo_procedimento: procedure,

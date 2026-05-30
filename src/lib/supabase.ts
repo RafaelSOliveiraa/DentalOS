@@ -73,7 +73,7 @@ export interface AgendamentoRow {
   data: string;
   hora: string;               // era hora_inicio — coluna real na tabela
   hora_fim: string | null;
-  data_hora: string | null;
+  data_hora: string;
   duracao_minutos: number | null;
   procedimento: string | null;
   tipo_procedimento: string | null;
