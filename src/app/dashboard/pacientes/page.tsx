@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -23,6 +24,7 @@ type TreatmentHistoryStatus = "Concluído" | "Em andamento" | "Agendado";
 
 interface Patient {
   id: number;
+  dbId?: string;       // real Supabase UUID — used for navigation to prontuário
   name: string;
   age: number;
   phone: string;
@@ -174,7 +176,7 @@ function RowMenu({ patient, onDetail }: { patient: Patient; onDetail: () => void
               { icon: Eye,        label: "Ver detalhes",  action: () => { onDetail(); setOpen(false); } },
               { icon: CalendarPlus, label: "Agendar consulta", action: () => setOpen(false) },
               { icon: CreditCard, label: "Registrar pgto.", action: () => setOpen(false) },
-              { icon: FileText,   label: "Ver prontuário", action: () => { router.push(`/dashboard/pacientes/${patient.id}/prontuario`); setOpen(false); } },
+              { icon: FileText,   label: "Ver prontuário", action: () => { router.push(`/dashboard/pacientes/${patient.dbId ?? patient.id}/prontuario`); setOpen(false); } },
               { icon: Trash2,     label: "Remover paciente", action: () => setOpen(false), danger: true },
             ].map(({ icon: Icon, label, action, danger }) => (
               <button key={label} onClick={action}
@@ -217,21 +219,15 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
     mutationFn: () =>
       createPaciente({
         nome,
-        cpf:               cpf || null,
-        data_nascimento:   dataNasc || null,
-        telefone:          telefone || null,
-        email:             email || null,
+        cpf:                  cpf || null,
+        data_nascimento:      dataNasc || null,
+        telefone:             telefone || null,
+        email:                email || null,
         sexo,
-        endereco_rua:      null,
-        endereco_bairro:   null,
-        endereco_cidade:   null,
-        endereco_estado:   null,
-        endereco_cep:      null,
-        como_conheceu:     comoConheceu,
-        dentista_id:       dentistaId || null,
-        status:            "NOVO",
-        tratamento:        tratamento || null,
-        balance:           0,
+        como_conheceu:        comoConheceu,
+        dentista_responsavel: dentistaId || null,
+        status:               "NOVO",
+        tratamento:           tratamento || null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pacientes"] });
@@ -568,6 +564,7 @@ export default function PacientesPage() {
     if (!dbPacientes || dbPacientes.length === 0) return PATIENTS;
     return dbPacientes.map(p => ({
       id:         Number(p.id.replace(/-/g, "").slice(0, 8) || 0) || Math.random(),
+      dbId:       p.id,   // real UUID used for prontuário navigation
       name:       p.nome,
       age:        p.data_nascimento
         ? Math.floor((Date.now() - new Date(p.data_nascimento).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
@@ -576,9 +573,9 @@ export default function PacientesPage() {
       email:      p.email ?? "—",
       status:     (p.status ?? "ATIVO") as PatientStatus,
       treatment:  p.tratamento ?? "—",
-      dentist:    "—",
+      dentist:    p.dentista_responsavel ?? "—",
       lastVisit:  "—",
-      balance:    Number(p.balance ?? 0),
+      balance:    0,      // balance column removed from DB table
       cpf:        p.cpf ?? "—",
       birthdate:  p.data_nascimento ?? "—",
       referral:   (p.como_conheceu ?? "Outros") as ReferralOption,
@@ -717,7 +714,7 @@ export default function PacientesPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">Dentista</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">Próx. Consulta</th>
                   <SortTh col="balance" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Saldo</SortTh>
-                  <th className="px-4 py-3 w-10" />
+                  <th className="px-4 py-3 w-20" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
@@ -757,7 +754,16 @@ export default function PacientesPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <RowMenu patient={p} onDetail={() => setDetailPatient(p)} />
+                          <div className="flex items-center gap-0.5">
+                            <Link
+                              href={`/dashboard/pacientes/${p.dbId ?? p.id}/prontuario`}
+                              title="Ver prontuário"
+                              className="p-1.5 rounded-lg text-white/30 hover:text-[#5B8DEF] hover:bg-[#5B8DEF]/[0.08] transition-colors"
+                            >
+                              <FileText size={15} />
+                            </Link>
+                            <RowMenu patient={p} onDetail={() => setDetailPatient(p)} />
+                          </div>
                         </td>
                       </tr>
                     );

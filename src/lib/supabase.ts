@@ -60,10 +60,10 @@ export interface PacienteRow {
   endereco_estado: string | null;
   endereco_cep: string | null;
   como_conheceu: string | null;
-  dentista_id: string | null;
+  dentista_responsavel: string | null; // real column name (was dentista_id)
   status: string;
   tratamento: string | null;
-  balance: number;
+  // balance removed — column does not exist in the table
   created_at: string;
   updated_at: string;
 }

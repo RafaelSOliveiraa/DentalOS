@@ -65,8 +65,22 @@ export async function fetchPacientes(search = ""): Promise<PacienteRow[]> {
   return data ?? [];
 }
 
+/** Only the columns that actually exist in the pacientes table on Supabase. */
+export type CreatePacientePayload = {
+  nome: string;
+  cpf: string | null;
+  data_nascimento: string | null;
+  telefone: string | null;
+  email: string | null;
+  sexo: string;
+  como_conheceu: string | null;
+  dentista_responsavel: string | null;
+  status: string;
+  tratamento: string | null;
+};
+
 export async function createPaciente(
-  payload: Omit<PacienteRow, "id" | "created_at" | "updated_at">
+  payload: CreatePacientePayload
 ): Promise<PacienteRow> {
   const { data, error } = await getSupabase()
     .from("pacientes")

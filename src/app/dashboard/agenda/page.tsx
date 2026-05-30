@@ -45,6 +45,7 @@ interface Appointment {
   isNew?: boolean;    // NP badge
   confirmed: boolean;
   isBreak?: boolean;
+  status?: string;    // DB status: "agendado"|"confirmado"|"cancelado"|"realizado"|"falta"|"remarcado"
 }
 
 /* ─── Grid constants ─── */
@@ -165,6 +166,16 @@ const HOUR_LABELS = Array.from(
 );
 
 /* ─── Appointment block ─── */
+/* Status → visual overrides for AppointmentBlock */
+const STATUS_BLOCK: Record<string, { opacity: number; stripe?: string; badge?: string; badgeColor?: string }> = {
+  agendado:   { opacity: 1 },
+  confirmado: { opacity: 1 },
+  realizado:  { opacity: 0.65, badge: "✓ Realizado",  badgeColor: "#1D9E75" },
+  cancelado:  { opacity: 0.40, badge: "✕ Cancelado",  badgeColor: "#DC2626" },
+  falta:      { opacity: 0.55, badge: "⚠ Falta",      badgeColor: "#CA8A04" },
+  remarcado:  { opacity: 0.70, badge: "↗ Remarcado",  badgeColor: "#5B8DEF" },
+};
+
 function AppointmentBlock({
   appt,
   onClick,
@@ -176,20 +187,24 @@ function AppointmentBlock({
   const height = timeDiffMin(appt.start, appt.end) * PIXELS_PER_MIN;
   const color  = PROC_COLOR[appt.procedure];
   const isBreak = appt.isBreak;
+  const stVis   = STATUS_BLOCK[appt.status ?? "agendado"] ?? STATUS_BLOCK.agendado;
 
   return (
     <div
       onClick={() => !isBreak && onClick(appt)}
-      className={`absolute left-1 right-1 rounded-lg overflow-hidden select-none ${
-        isBreak ? "cursor-default" : "cursor-pointer hover:brightness-110 transition-all"
+      className={`absolute left-1 right-1 rounded-lg overflow-hidden select-none transition-all ${
+        isBreak ? "cursor-default" : "cursor-pointer hover:brightness-110"
       }`}
       style={{
         top,
-        height: Math.max(height - 2, 22),
+        height:  Math.max(height - 2, 22),
+        opacity: stVis.opacity,
         background: isBreak ? "rgba(107,114,128,0.10)" : `${color}18`,
         border: `1px solid ${color}35`,
         borderLeft: `3px solid ${color}`,
         zIndex: 10,
+        // strikethrough overlay for cancelled
+        ...(appt.status === "cancelado" ? { filter: "grayscale(0.4)" } : {}),
       }}
     >
       <div className="px-2 py-1 h-full flex flex-col justify-between">
@@ -199,7 +214,7 @@ function AppointmentBlock({
           <>
             <div className="flex items-start gap-1">
               <span
-                className="text-[11px] font-semibold leading-tight truncate"
+                className={`text-[11px] font-semibold leading-tight truncate ${appt.status === "cancelado" ? "line-through" : ""}`}
                 style={{ color }}
               >
                 {appt.patient}
@@ -215,7 +230,11 @@ function AppointmentBlock({
             </div>
             {height >= 48 && (
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/35 truncate">{appt.procedure}</span>
+                {stVis.badge ? (
+                  <span className="text-[9px] font-bold truncate" style={{ color: stVis.badgeColor }}>{stVis.badge}</span>
+                ) : (
+                  <span className="text-[10px] text-white/35 truncate">{appt.procedure}</span>
+                )}
                 {appt.confirmed ? (
                   <CheckCircle2 size={10} className="text-[#1D9E75] flex-shrink-0" />
                 ) : (
@@ -332,8 +351,7 @@ function NewAppointmentModal({
       });
     },
     onSuccess: () => {
-      // Invalidate the exact key for the active date so the grid refreshes (P5)
-      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate] });
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate], refetchType: "all" });
       toast.success("Agendamento salvo com sucesso!");
       onClose();
     },
@@ -516,8 +534,8 @@ function RemarcarModal({
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate] });
-      qc.invalidateQueries({ queryKey: ["agendamentos", novaData] });
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["agendamentos", novaData],   refetchType: "all" });
       toast.success("Consulta remarcada!");
       onClose();
     },
@@ -633,7 +651,7 @@ function AppointmentDetailModal({
       });
     },
     onSuccess: (_data, status) => {
-      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate] });
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate], refetchType: "all" });
       const msgs: Record<string, string> = {
         confirmado: "Consulta confirmada!",
         cancelado:  "Consulta cancelada.",
@@ -839,6 +857,7 @@ export default function AgendaPage() {
       phone:        undefined,
       confirmed:    a.confirmado,
       isBreak:      false,
+      status:       a.status ?? "agendado",
     };
   });
 
