@@ -216,8 +216,12 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
 
   /* Create mutation */
   const saveMut = useMutation({
-    mutationFn: () =>
-      createPaciente({
+    mutationFn: () => {
+      // P1: store the dentist NAME (not UUID) so the list shows it correctly
+      const dentistaNome =
+        dbDentistas.find(d => d.id === dentistaId)?.nome ??
+        (dentistaId || null);
+      return createPaciente({
         nome,
         cpf:                  cpf || null,
         data_nascimento:      dataNasc || null,
@@ -225,10 +229,11 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
         email:                email || null,
         sexo,
         como_conheceu:        comoConheceu,
-        dentista_responsavel: dentistaId || null,
+        dentista_responsavel: dentistaNome,
         status:               "NOVO",
         tratamento:           tratamento || null,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pacientes"] });
       toast.success("Paciente cadastrado com sucesso!");
@@ -559,9 +564,9 @@ export default function PacientesPage() {
     staleTime: 20_000,
   });
 
-  /* Map Supabase rows → local Patient shape (or fall back to static PATIENTS) */
+  /* P6/P7: Map ONLY Supabase rows — never fall back to static demo data */
   const allPatients: Patient[] = useMemo(() => {
-    if (!dbPacientes || dbPacientes.length === 0) return PATIENTS;
+    if (!dbPacientes) return [];   // still loading — show skeleton
     return dbPacientes.map(p => ({
       id:         Number(p.id.replace(/-/g, "").slice(0, 8) || 0) || Math.random(),
       dbId:       p.id,   // real UUID used for prontuário navigation
@@ -575,7 +580,7 @@ export default function PacientesPage() {
       treatment:  p.tratamento ?? "—",
       dentist:    p.dentista_responsavel ?? "—",
       lastVisit:  "—",
-      balance:    0,      // balance column removed from DB table
+      balance:    0,
       cpf:        p.cpf ?? "—",
       birthdate:  p.data_nascimento ?? "—",
       referral:   (p.como_conheceu ?? "Outros") as ReferralOption,
@@ -617,7 +622,8 @@ export default function PacientesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const totalBalance = PATIENTS.reduce((s, p) => s + p.balance, 0);
+  // P3: use real DB patients for balance, not static demo data
+  const totalBalance = allPatients.reduce((s, p) => s + p.balance, 0);
 
   const STATUS_CHIPS: Array<{ label: string; value: PatientStatus | "Todos" }> = [
     { label: "Todos",         value: "Todos" },
@@ -720,8 +726,29 @@ export default function PacientesPage() {
               <tbody className="divide-y divide-white/[0.04]">
                 {loadingPacientes ? (
                   Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} cols={9} />)
+                ) : allPatients.length === 0 && !search && statusFilter === "Todos" && dentistFilter === "Todos" && treatmentFilter === "Todos" ? (
+                  /* P6: DB is genuinely empty — no patients at all */
+                  <tr>
+                    <td colSpan={9}>
+                      <div className="flex flex-col items-center justify-center py-20 gap-4">
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <Users size={32} className="text-white/20" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-white/50 font-medium mb-1">Nenhum paciente cadastrado ainda</p>
+                          <p className="text-white/25 text-sm">Clique no botão abaixo para adicionar o primeiro paciente</p>
+                        </div>
+                        <button
+                          onClick={() => setShowNewModal(true)}
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1D9E75] hover:bg-[#18896A] transition-colors"
+                        >
+                          <Plus size={14} /> Novo Paciente
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 ) : pageItems.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-10 text-center text-white/30 text-sm">Nenhum paciente encontrado.</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-10 text-center text-white/30 text-sm">Nenhum paciente encontrado com os filtros atuais.</td></tr>
                 ) : (
                   pageItems.map(p => {
                     const isInad = p.status === "INADIMPLENTE";

@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   LayoutDashboard, CalendarDays, Users, DollarSign, Package,
   Settings, Search, Plus, X, ChevronUp, ChevronDown, MoreHorizontal,
   AlertTriangle, Clock, CheckCircle, ArrowUp, ArrowDown, History,
   Truck, ShoppingCart, RefreshCw, MapPin, Boxes, Tag, Wrench,
   PackagePlus, PackageX, ListChecks, CalendarClock,
-  Shield, ClipboardList, BarChart2, BrainCircuit,
+  Shield, ClipboardList, BarChart2, BrainCircuit, LoaderCircle,
 } from "lucide-react";
+import { createEstoqueMov } from "@/lib/queries";
 
 /* ─── Types ─── */
 type ItemStatus = "CRÍTICO" | "VENCENDO" | "OK";
@@ -246,10 +249,42 @@ function AddItemModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ─── Register Movement Modal ─── */
+/* ─── Register Movement Modal (P5 — saves to estoque_movimentacoes) ─── */
 function RegisterMovModal({ onClose }: { onClose: () => void }) {
-  const [movType, setMovType] = useState<MovType>("ENTRADA");
+  const qc = useQueryClient();
   const MOV_TYPES: MovType[] = ["ENTRADA", "SAÍDA", "AJUSTE"];
+
+  /* Controlled fields */
+  const [movType,   setMovType]   = useState<MovType>("ENTRADA");
+  const [itemNome,  setItemNome]  = useState("");
+  const [quantidade,setQuantidade]= useState("");
+  const [custo,     setCusto]     = useState("");
+  const [motivo,    setMotivo]    = useState("");
+  const [data,      setData]      = useState(new Date().toISOString().split("T")[0]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      createEstoqueMov({
+        tipo:          movType,
+        item_nome:     itemNome,
+        quantidade:    Number(quantidade) || 0,
+        custo_unitario: custo ? Number(custo.replace(",", ".")) : null,
+        motivo:        motivo || null,
+        data,
+        usuario:       null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["estoque-movimentacoes"] });
+      toast.success("Movimentação registrada com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro ao registrar: ${e.message}`),
+  });
+
+  const inputCls = "w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors";
+  const inputStyle = { background: "#0C0F1A" };
+  const canSave = itemNome.trim() && quantidade && Number(quantidade) > 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)" }}>
       <div className="w-full max-w-md rounded-2xl border border-white/[0.08] shadow-2xl overflow-hidden" style={{ background: "#131726" }}>
@@ -258,6 +293,7 @@ function RegisterMovModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-4">
+          {/* Tipo */}
           <div>
             <label className="block text-xs text-white/40 mb-2">Tipo de movimentação</label>
             <div className="flex gap-2">
@@ -274,35 +310,71 @@ function RegisterMovModal({ onClose }: { onClose: () => void }) {
               })}
             </div>
           </div>
+          {/* Item */}
           <div>
             <label className="block text-xs text-white/40 mb-1.5">Item *</label>
-            <select className="w-full rounded-xl px-3 py-2.5 text-sm text-white/70 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }}>
-              <option value="">Selecionar item…</option>
-              {ITEMS.map(i => <option key={i.id}>{i.name}</option>)}
-            </select>
+            <input
+              list="items-list"
+              value={itemNome}
+              onChange={e => setItemNome(e.target.value)}
+              className={inputCls} style={inputStyle}
+              placeholder="Nome do item…"
+            />
+            <datalist id="items-list">
+              {ITEMS.map(i => <option key={i.id} value={i.name} />)}
+            </datalist>
           </div>
+          {/* Qty + Custo */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-white/40 mb-1.5">Quantidade *</label>
-              <input type="number" min="1" className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="0" />
+              <input
+                type="number" min="1"
+                value={quantidade} onChange={e => setQuantidade(e.target.value)}
+                className={inputCls} style={inputStyle}
+                placeholder="0"
+              />
             </div>
             <div>
               <label className="block text-xs text-white/40 mb-1.5">Custo unitário</label>
-              <input className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="R$ 0,00" />
+              <input
+                value={custo} onChange={e => setCusto(e.target.value)}
+                className={inputCls} style={inputStyle}
+                placeholder="0,00"
+              />
             </div>
           </div>
+          {/* Motivo */}
           <div>
             <label className="block text-xs text-white/40 mb-1.5">Motivo / Observação</label>
-            <input className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="Ex: Uso no consultório, Pedido #1234…" />
+            <input
+              value={motivo} onChange={e => setMotivo(e.target.value)}
+              className={inputCls} style={inputStyle}
+              placeholder="Ex: Uso no consultório, Pedido #1234…"
+            />
           </div>
+          {/* Data */}
           <div>
             <label className="block text-xs text-white/40 mb-1.5">Data</label>
-            <input type="date" className="w-full rounded-xl px-3 py-2.5 text-sm text-white/70 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} />
+            <input
+              type="date"
+              value={data} onChange={e => setData(e.target.value)}
+              className={inputCls + " text-white/70"} style={inputStyle}
+            />
           </div>
         </div>
         <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm text-white/50 border border-white/[0.08] hover:bg-white/[0.04] transition-colors">Cancelar</button>
-          <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1D9E75] hover:bg-[#18896A] transition-colors">Registrar</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm text-white/50 border border-white/[0.08] hover:bg-white/[0.04] transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending || !canSave}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1D9E75] hover:bg-[#18896A] disabled:opacity-60 transition-colors"
+          >
+            {saveMut.isPending ? <LoaderCircle size={14} className="animate-spin" /> : null}
+            Registrar
+          </button>
         </div>
       </div>
     </div>

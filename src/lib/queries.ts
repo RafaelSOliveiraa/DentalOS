@@ -10,6 +10,7 @@ import type {
   AgendamentoRow,
   AnamneseRow,
   ConsultaRow,
+  EstoqueMovRow,
 } from "./supabase";
 
 /* ─── Dentistas ─── */
@@ -199,6 +200,56 @@ export async function createConsulta(
 ): Promise<ConsultaRow> {
   const { data, error } = await getSupabase()
     .from("consultas")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/* ─── Agendamentos — semana ─── */
+/** Fetches appointments for a range of dates [startDate, endDate] inclusive. */
+export async function fetchAgendamentosByWeek(
+  startDate: string,
+  endDate: string
+): Promise<AgendamentoRow[]> {
+  const { data, error } = await getSupabase()
+    .from("agendamentos")
+    .select("*")
+    .gte("data", startDate)
+    .lte("data", endDate)
+    .order("data")
+    .order("hora");
+  if (error) throw error;
+  return data ?? [];
+}
+
+/* ─── Estoque — Movimentações ─── */
+export type CreateEstoqueMovPayload = {
+  tipo: "ENTRADA" | "SAÍDA" | "AJUSTE";
+  item_nome: string;
+  quantidade: number;
+  custo_unitario: number | null;
+  motivo: string | null;
+  data: string;
+  usuario: string | null;
+};
+
+export async function fetchEstoqueMovimentacoes(): Promise<EstoqueMovRow[]> {
+  const { data, error } = await getSupabase()
+    .from("estoque_movimentacoes")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createEstoqueMov(
+  payload: CreateEstoqueMovPayload
+): Promise<EstoqueMovRow> {
+  const { data, error } = await getSupabase()
+    .from("estoque_movimentacoes")
     .insert(payload)
     .select()
     .single();

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ChevronLeft, ChevronRight, Plus, X, Clock, Phone, User,
@@ -125,6 +125,50 @@ function useCurrentTimeY() {
     return () => clearInterval(t);
   }, []);
   return y;
+}
+
+/* ─── Week date helpers (P4) ─── */
+/** Returns Mon–Fri ISO dates for the week containing `referenceDate`. */
+function getWeekDates(referenceDate: string): string[] {
+  const date = new Date(referenceDate + "T12:00:00");
+  const day = date.getDay(); // 0=Sun, 1=Mon, ...
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + mondayOffset);
+  return Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d.toISOString().split("T")[0];
+  });
+}
+
+/** Reusable mapper: AgendamentoRow → Appointment (used by day & week views). */
+function mapRowToAppt(a: AgendamentoRow, dbDentistas: DentistaRow[]): Appointment {
+  const dentista = dbDentistas.find(
+    d => d.nome.toLowerCase() === (a.dentista_nome ?? "").toLowerCase()
+  );
+  const dentKey: DentistKey =
+    dentista?.id ??
+    ((a.dentista_nome ?? "").toLowerCase().includes("ana")
+      ? "ana"
+      : (a.dentista_nome ?? "").toLowerCase().includes("bruno")
+      ? "bruno"
+      : "carla");
+  return {
+    dbId:         a.id,
+    id:           Number(a.id.replace(/-/g, "").slice(0, 8) || 0),
+    dentist:      dentKey,
+    dentistName:  dentista?.nome ?? a.dentista_nome ?? "—",
+    dentistColor: dentista?.cor  ?? "#1D9E75",
+    procedure:    (a.procedimento ?? "Consulta") as ProcedureType,
+    start:        (a.hora     ?? "00:00").slice(0, 5),
+    end:          (a.hora_fim ?? "00:00").slice(0, 5),
+    patient:      a.paciente_nome ?? "Paciente",
+    phone:        undefined,
+    confirmed:    a.confirmado,
+    isBreak:      false,
+    status:       a.status ?? "agendado",
+  };
 }
 
 /* ─── Free slot builder ─── */
@@ -812,13 +856,128 @@ function AppointmentDetailModal({
   );
 }
 
+/* ─── Week View (P4) ─── */
+const WEEK_DAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex"];
+
+function WeekView({
+  weekDates,
+  weekAppts,
+  today,
+  onClickAppt,
+}: {
+  weekDates: string[];
+  weekAppts: Record<string, Appointment[]>;
+  today: string;
+  onClickAppt: (a: Appointment) => void;
+}) {
+  return (
+    <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+      {/* Day headers */}
+      <div
+        className="flex-none flex border-b border-white/[0.06]"
+        style={{ background: "rgba(12,15,26,0.95)" }}
+      >
+        {weekDates.map((date, i) => {
+          const d = new Date(date + "T12:00:00");
+          const isToday = date === today;
+          const appts = (weekAppts[date] ?? []).filter(a => !a.isBreak);
+          const confirmed = appts.filter(a => a.confirmed).length;
+          return (
+            <div
+              key={date}
+              className="flex-1 px-4 py-3 border-r border-white/[0.04] last:border-r-0"
+            >
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-semibold text-white/40 uppercase">{WEEK_DAY_LABELS[i]}</span>
+                <span
+                  className={`text-2xl font-bold leading-none ${isToday ? "text-[#1D9E75]" : "text-white"}`}
+                >
+                  {d.getDate()}
+                </span>
+                {isToday && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "rgba(29,158,117,0.15)", color: "#1D9E75" }}>
+                    Hoje
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-white/30 mt-1">
+                {appts.length} consulta{appts.length !== 1 ? "s" : ""} · {confirmed} ✓
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Appointment columns — scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex min-h-full">
+          {weekDates.map((date) => {
+            const appts = (weekAppts[date] ?? [])
+              .filter(a => !a.isBreak)
+              .sort((a, b) => a.start.localeCompare(b.start));
+            const isToday = date === today;
+
+            return (
+              <div
+                key={date}
+                className="flex-1 border-r border-white/[0.04] last:border-r-0 p-2 space-y-1.5"
+                style={{ background: isToday ? "rgba(29,158,117,0.02)" : undefined, minHeight: 480 }}
+              >
+                {appts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-40 text-center gap-2 mt-6">
+                    <Calendar size={20} className="text-white/10" />
+                    <p className="text-[10px] text-white/20">Sem consultas</p>
+                  </div>
+                ) : (
+                  appts.map(appt => {
+                    const color = PROC_COLOR[appt.procedure] ?? "#5B8DEF";
+                    const stVis = STATUS_BLOCK[appt.status ?? "agendado"] ?? STATUS_BLOCK.agendado;
+                    return (
+                      <button
+                        key={appt.id}
+                        onClick={() => onClickAppt(appt)}
+                        className="w-full text-left rounded-lg p-2 border transition-all hover:brightness-110"
+                        style={{
+                          background:   `${color}14`,
+                          borderLeft:   `3px solid ${color}`,
+                          borderColor:  `${color}28`,
+                          opacity:       stVis.opacity,
+                        }}
+                      >
+                        <p className="text-[11px] font-semibold text-white leading-tight truncate">
+                          {appt.patient}
+                        </p>
+                        <p className="text-[9px] mt-0.5" style={{ color }}>
+                          {appt.start} · {appt.procedure}
+                        </p>
+                        {appt.dentistName && appt.dentistName !== "—" && (
+                          <p className="text-[9px] text-white/30 truncate">{appt.dentistName}</p>
+                        )}
+                        {stVis.badge && (
+                          <p className="text-[9px] font-bold mt-0.5" style={{ color: stVis.badgeColor }}>
+                            {stVis.badge}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Page ─── */
 export default function AgendaPage() {
   const [selectedAppt,   setSelectedAppt]   = useState<Appointment | null>(null);
   const [newApptDentist, setNewApptDentist] = useState<DentistKey | null>(null);
   const [newApptTime,    setNewApptTime]    = useState("09:00");
   const [view,           setView]           = useState<"dia" | "semana">("dia");
-  const TODAY = "2026-05-27";
+  const TODAY = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   const timelineRef  = useRef<HTMLDivElement>(null);
   const currentTimeY = useCurrentTimeY();
@@ -834,32 +993,26 @@ export default function AgendaPage() {
     queryFn:  () => fetchAgendamentosByDate(TODAY),
   });
 
-  /* Map DB agendamentos → local Appointment shape (overlay on static) */
-  const liveAppts: Appointment[] = dbAgendamentos.map(a => {
-    // Match dentista by name to get their DB ID (used as column key)
-    const dentista = dbDentistas.find(
-      d => d.nome.toLowerCase() === (a.dentista_nome ?? "").toLowerCase()
-    );
-    const dentKey: DentistKey = dentista?.id ??
-      ((a.dentista_nome ?? "").toLowerCase().includes("ana")   ? "ana"
-      : (a.dentista_nome ?? "").toLowerCase().includes("bruno") ? "bruno"
-      : "carla");
-    return {
-      dbId:         a.id,
-      id:           Number(a.id.replace(/-/g, "").slice(0, 8) || 0),
-      dentist:      dentKey,
-      dentistName:  dentista?.nome  ?? a.dentista_nome  ?? "—",
-      dentistColor: dentista?.cor   ?? "#1D9E75",
-      procedure:    (a.procedimento ?? "Consulta") as ProcedureType,
-      start:        (a.hora     ?? "00:00").slice(0, 5),
-      end:          (a.hora_fim ?? "00:00").slice(0, 5),
-      patient:      a.paciente_nome ?? "Paciente",
-      phone:        undefined,
-      confirmed:    a.confirmado,
-      isBreak:      false,
-      status:       a.status ?? "agendado",
-    };
+  /* P4: Week-view — fetch Mon–Fri with useQueries (all 5 days in parallel) */
+  const weekDates = useMemo(() => getWeekDates(TODAY), [TODAY]);
+  const weekResults = useQueries({
+    queries: weekDates.map(date => ({
+      queryKey: ["agendamentos", date],
+      queryFn:  () => fetchAgendamentosByDate(date),
+      enabled:  view === "semana",
+    })),
   });
+  const weekAppts = useMemo<Record<string, Appointment[]>>(() => {
+    const map: Record<string, Appointment[]> = {};
+    weekDates.forEach((date, i) => {
+      map[date] = (weekResults[i]?.data ?? []).map(a => mapRowToAppt(a, dbDentistas));
+    });
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekDates, weekResults, dbDentistas]);
+
+  /* Map DB agendamentos → local Appointment shape (day view) */
+  const liveAppts: Appointment[] = dbAgendamentos.map(a => mapRowToAppt(a, dbDentistas));
 
   /* Use live data if available, else fall back to static demo data */
   const displayAppts = liveAppts.length > 0 ? liveAppts : APPOINTMENTS;
@@ -995,6 +1148,15 @@ export default function AgendaPage() {
 
         {/* ── Grid area ── */}
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+
+        {view === "semana" ? (
+          <WeekView
+            weekDates={weekDates}
+            weekAppts={weekAppts}
+            today={TODAY}
+            onClickAppt={setSelectedAppt}
+          />
+        ) : (<>
 
           {/* Dentist column headers */}
           <div
@@ -1149,6 +1311,8 @@ export default function AgendaPage() {
               </div>
             </div>
           </div>
+
+        </>)}
         </div>
       </main>
 

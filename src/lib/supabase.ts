@@ -122,3 +122,16 @@ export interface ConsultaRow {
   created_at: string;
   dentistas?: { nome: string } | null;
 }
+
+/* ─── Estoque ─── */
+export interface EstoqueMovRow {
+  id: string;
+  tipo: "ENTRADA" | "SAÍDA" | "AJUSTE";
+  item_nome: string;
+  quantidade: number;
+  custo_unitario: number | null;
+  motivo: string | null;
+  data: string;
+  usuario: string | null;
+  created_at: string;
+}
