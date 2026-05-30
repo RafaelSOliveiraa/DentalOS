@@ -12,22 +12,10 @@ import {
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 
-/* ─── Data ─── */
-const MONTHLY_CHART = [
-  { mes: "Dez", faturamento: 38200, lucro: 14800 },
-  { mes: "Jan", faturamento: 41000, lucro: 16200 },
-  { mes: "Fev", faturamento: 38600, lucro: 14900 },
-  { mes: "Mar", faturamento: 44300, lucro: 17400 },
-  { mes: "Abr", faturamento: 47100, lucro: 18600 },
-  { mes: "Mai", faturamento: 52800, lucro: 21340 },
-];
+/* ─── Data — zerado (sem dados simulados) ─── */
+const MONTHLY_CHART: { mes: string; faturamento: number; lucro: number }[] = [];
 
-const PIE_DATA = [
-  { name: "Ortodontia",  value: 31, color: "#5B8DEF" },
-  { name: "Clareamento", value: 28, color: "#1D9E75" },
-  { name: "Implante",    value: 22, color: "#9B6DFF" },
-  { name: "Restauração", value: 19, color: "#EF9F27" },
-];
+const PIE_DATA: { name: string; value: number; color: string }[] = [];
 
 type KpiStatus = "ok" | "warning" | "danger";
 
@@ -41,16 +29,7 @@ interface KpiRow {
   varPos: boolean;
 }
 
-const KPI_ROWS: KpiRow[] = [
-  { indicator: "Faturamento",      value: "R$ 52.800", meta: "R$ 55.000", status: "warning", pct: "96%",       variation: "+12%",       varPos: true  },
-  { indicator: "Lucro líquido",    value: "R$ 21.340", meta: "R$ 20.000", status: "ok",      pct: "Atingido",  variation: "+8%",         varPos: true  },
-  { indicator: "Margem",           value: "40,4%",     meta: "38%",       status: "ok",      pct: "Atingido",  variation: "+1,4pp",      varPos: true  },
-  { indicator: "Ticket médio",     value: "R$ 357",    meta: "R$ 350",    status: "ok",      pct: "Atingido",  variation: "+R$ 22",      varPos: true  },
-  { indicator: "Ocupação agenda",  value: "78%",       meta: "80%",       status: "warning", pct: "97%",       variation: "+5pp",        varPos: true  },
-  { indicator: "Taxa de faltas",   value: "8%",        meta: "7%",        status: "warning", pct: "Acima",     variation: "-3pp",        varPos: false },
-  { indicator: "Pacientes novos",  value: "18",        meta: "15",        status: "ok",      pct: "Atingido",  variation: "+3",          varPos: true  },
-  { indicator: "Inadimplência",    value: "R$ 4.800",  meta: "R$ 2.000",  status: "danger",  pct: "Acima",     variation: "+R$ 1.200",   varPos: false },
-];
+const KPI_ROWS: KpiRow[] = [];
 
 interface ComparativoRow {
   mes: string;
@@ -63,14 +42,7 @@ interface ComparativoRow {
   highlight?: boolean;
 }
 
-const COMPARATIVE: ComparativoRow[] = [
-  { mes: "Dezembro",  faturamento: 38200, lucro: 14800, margem: "38,7%", consultas: 108, ticket: 354, faltas: "11%" },
-  { mes: "Janeiro",   faturamento: 41000, lucro: 16200, margem: "39,5%", consultas: 116, ticket: 353, faltas: "9%"  },
-  { mes: "Fevereiro", faturamento: 38600, lucro: 14900, margem: "38,6%", consultas: 109, ticket: 354, faltas: "12%" },
-  { mes: "Março",     faturamento: 44300, lucro: 17400, margem: "39,3%", consultas: 125, ticket: 354, faltas: "8%"  },
-  { mes: "Abril",     faturamento: 47100, lucro: 18600, margem: "39,5%", consultas: 132, ticket: 357, faltas: "11%" },
-  { mes: "Maio",      faturamento: 52800, lucro: 21340, margem: "40,4%", consultas: 148, ticket: 357, faltas: "8%",  highlight: true },
-];
+const COMPARATIVE: ComparativoRow[] = [];
 
 const PERIODS = ["Este mês", "Últimos 3 meses", "Este ano"] as const;
 type Period = typeof PERIODS[number];
@@ -150,35 +122,42 @@ function ProcedimentosPie() {
         <h3 className="text-white font-semibold text-sm">Procedimentos Realizados</h3>
         <p className="text-xs text-white/35 mt-0.5">Distribuição em maio 2026</p>
       </div>
-      <div className="flex items-center gap-4">
-        <ResponsiveContainer width={180} height={180}>
-          <PieChart>
-            <Pie data={PIE_DATA} cx="50%" cy="50%" innerRadius={52} outerRadius={82} dataKey="value" stroke="none">
-              {PIE_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-            </Pie>
-            <Tooltip
-              content={({ active, payload }) =>
-                active && payload?.length ? (
-                  <div className="rounded-xl border border-white/[0.08] px-3 py-2 shadow-xl" style={{ background: "#1A1F35" }}>
-                    <p className="text-xs font-semibold text-white">{payload[0].name}: {payload[0].value}%</p>
-                  </div>
-                ) : null
-              }
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="flex-1 space-y-2.5">
-          {PIE_DATA.map(d => (
-            <div key={d.name} className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-sm text-white/70">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                {d.name}
-              </span>
-              <span className="text-sm font-bold text-white">{d.value}%</span>
-            </div>
-          ))}
+      {PIE_DATA.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <div className="w-10 h-10 rounded-full border-4 border-dashed border-white/10" />
+          <p className="text-sm text-white/30">Sem procedimentos registrados</p>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-4">
+          <ResponsiveContainer width={180} height={180}>
+            <PieChart>
+              <Pie data={PIE_DATA} cx="50%" cy="50%" innerRadius={52} outerRadius={82} dataKey="value" stroke="none">
+                {PIE_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip
+                content={({ active, payload }) =>
+                  active && payload?.length ? (
+                    <div className="rounded-xl border border-white/[0.08] px-3 py-2 shadow-xl" style={{ background: "#1A1F35" }}>
+                      <p className="text-xs font-semibold text-white">{payload[0].name}: {payload[0].value}%</p>
+                    </div>
+                  ) : null
+                }
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex-1 space-y-2.5">
+            {PIE_DATA.map(d => (
+              <div key={d.name} className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm text-white/70">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                  {d.name}
+                </span>
+                <span className="text-sm font-bold text-white">{d.value}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -255,9 +234,15 @@ export default function RelatoriosPage() {
   const totFat    = periodSlice.reduce((s, r) => s + r.faturamento, 0);
   const totLucro  = periodSlice.reduce((s, r) => s + r.lucro, 0);
   const totCons   = periodSlice.reduce((s, r) => s + r.consultas, 0);
-  const avgMargem = (periodSlice.reduce((s, r) => s + parseFloat(r.margem), 0) / periodSlice.length).toFixed(1);
-  const avgTicket = Math.round(periodSlice.reduce((s, r) => s + r.ticket, 0) / periodSlice.length);
-  const avgFaltas = (periodSlice.reduce((s, r) => s + parseFloat(r.faltas), 0) / periodSlice.length).toFixed(0);
+  const avgMargem = periodSlice.length > 0
+    ? (periodSlice.reduce((s, r) => s + parseFloat(r.margem), 0) / periodSlice.length).toFixed(1)
+    : "0,0";
+  const avgTicket = periodSlice.length > 0
+    ? Math.round(periodSlice.reduce((s, r) => s + r.ticket, 0) / periodSlice.length)
+    : 0;
+  const avgFaltas = periodSlice.length > 0
+    ? (periodSlice.reduce((s, r) => s + parseFloat(r.faltas), 0) / periodSlice.length).toFixed(0)
+    : "0";
 
   const periodSubLabel =
     period === "Este mês"         ? "maio 2026"
@@ -351,7 +336,13 @@ export default function RelatoriosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {KPI_ROWS.map((row, i) => (
+                {KPI_ROWS.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-white/30">
+                      Sem dados de desempenho — cadastre pacientes e agendamentos para ver os indicadores.
+                    </td>
+                  </tr>
+                ) : KPI_ROWS.map((row, i) => (
                   <tr key={row.indicator}
                     style={{ background: i % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.03)"; }}
@@ -393,7 +384,13 @@ export default function RelatoriosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {periodSlice.map((row, i) => (
+                {periodSlice.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-10 text-center text-sm text-white/30">
+                      Sem dados históricos — registre receitas e consultas para ver o comparativo.
+                    </td>
+                  </tr>
+                ) : periodSlice.map((row, i) => (
                   <tr key={row.mes}
                     style={{ background: row.highlight ? "rgba(29,158,117,0.05)" : i % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = row.highlight ? "rgba(29,158,117,0.08)" : "rgba(255,255,255,0.03)"; }}

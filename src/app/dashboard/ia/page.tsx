@@ -18,70 +18,32 @@ interface Message {
 /* ─── Predefined responses ─── */
 const CHIP_RESPONSES: Record<string, string> = {
   "Por que o lucro caiu em abril?":
-`Identifiquei 3 fatores:
+`Ainda não há dados suficientes para esta análise.
 
-1. Custo de materiais subiu 23% — compras emergenciais de resina e anestésico
-2. Taxa de faltas chegou a 14% vs 7% em março — perdeu ~R$ 3.200
-3. Agenda com 68% de ocupação — 2 semanas fracas
-
-💡 Ative confirmação automática por WhatsApp 24h antes das consultas.`,
+Cadastre pacientes, agendamentos e registros financeiros para que eu possa identificar padrões e te ajudar com insights reais.`,
 
   "Qual procedimento tem maior margem?":
-`Margem por procedimento em maio:
+`Sem dados de procedimentos registrados ainda.
 
-1. Clareamento: 71% — R$ 300 por sessão
-2. Implante: 68% — R$ 2.400 por procedimento
-3. Ortodontia: 52% — R$ 800/mês por paciente
-4. Restauração: 45% — R$ 180 por restauração
-
-💡 Priorize captação para clareamento e implantes.`,
+Quando você começar a registrar consultas e receitas, vou calcular a margem por tipo de procedimento e indicar onde focar.`,
 
   "Estou gastando demais em materiais?":
-`Comparativo de materiais:
+`Sem dados financeiros para analisar.
 
-• Março: R$ 7.200 (13,6% da receita) ✅
-• Abril: R$ 8.860 (18,8% da receita) ⚠️
-• Maio: R$ 8.900 (16,9% da receita) ⚠️
-
-Benchmark ideal: 12–15% da receita.
-Você está acima do ideal nos últimos 2 meses.
-
-💡 Compras emergenciais custam 15–25% mais caro. Use o módulo de estoque para reposição planejada.`,
+Registre suas despesas no módulo Financeiro e vou te avisar quando alguma categoria estiver acima do benchmark do setor.`,
 
   "Quanto preciso faturar para meta R$ 60k?":
-`Para atingir R$ 60.000 em junho:
-
-• Falta R$ 7.200 acima de maio
-• Com ticket médio de R$ 357: precisa de +20 consultas
-• Com agenda em 78%: há capacidade disponível
-• Equivale a apenas 4 consultas extras por semana
-
-💡 Ative lista de espera para preencher horários vagos.`,
+`Configure sua meta mensal e comece a registrar receitas — vou acompanhar o progresso e te dizer quantas consultas faltam para atingi-la.`,
 
   "Quais pacientes estão inadimplentes?":
-`6 pacientes com pagamentos em atraso:
+`Nenhum dado de inadimplência encontrado.
 
-1. João Silva — R$ 1.800 (56 dias em atraso)
-2. Pedro Santos — R$ 2.400 (47 dias em atraso)
-3. Lucia Rocha — R$ 600 (17 dias em atraso)
-4. Ana Ferreira — R$ 250 (3 dias em atraso)
-
-Total: R$ 5.050 a recuperar
-
-💡 Entre em contato começando pelos mais antigos. João e Pedro somam 84% do valor.`,
+Quando houver parcelas em atraso registradas, vou listar os pacientes com o valor e os dias em aberto.`,
 
   "Como está minha ocupação de agenda?":
-`Ocupação de agenda em maio:
+`Sem agendamentos registrados ainda.
 
-• Média geral: 78% ✅
-• Dra. Ana Paula: 85% 🔥
-• Dr. Bruno: 72% ✅
-• Dra. Carla: 61% ⚠️
-
-• Melhor dia: terça-feira (91%)
-• Pior dia: sexta-feira (58%)
-
-💡 Dra. Carla tem 39% da agenda vaga. Considere campanhas de reativação de pacientes inativos para ela.`,
+Comece a agendar consultas e vou calcular a taxa de ocupação por dentista, dia da semana e período do mês.`,
 };
 
 const QUICK_CHIPS = Object.keys(CHIP_RESPONSES);
@@ -139,7 +101,7 @@ function MessageBubble({ message }: { message: Message }) {
 const WELCOME: Message = {
   id: 0,
   role: "assistant",
-  content: `Olá, Dra. Ana Paula! 👋\n\nAnalisei os dados de maio. Faturamento R$ 52.800 com margem 40,4%.\n\nO que você gostaria de saber?`,
+  content: `Olá! 👋\n\nQuando você começar a cadastrar pacientes e agendamentos, vou analisar os dados e te ajudar com insights da clínica.\n\nVocê já pode me fazer perguntas — estou conectado à IA e pronto para responder!`,
   time: nowTime(),
 };
 
@@ -234,9 +196,9 @@ export default function IAPage() {
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4 shadow-lg" style={{ background: "rgba(29,158,117,0.12)", border: "1px solid rgba(29,158,117,0.25)" }}>
               <Bot size={36} className="text-[#1D9E75]" />
             </div>
-            <h2 className="text-white font-bold text-xl mb-1">Olá, Dra. Ana Paula!</h2>
+            <h2 className="text-white font-bold text-xl mb-1">Olá! Sou o assistente DentalOS</h2>
             <p className="text-white/50 text-sm max-w-md">
-              Analisei os dados de maio. Faturamento <span className="text-white font-medium">R$ 52.800</span> com margem <span className="text-white font-medium">40,4%</span>. O que você gostaria de saber?
+              Quando você começar a cadastrar pacientes e agendamentos, vou analisar os dados e te ajudar com insights da clínica.
             </p>
           </div>
         )}

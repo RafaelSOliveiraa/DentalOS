@@ -15,21 +15,15 @@ import {
   Cell,
 } from "recharts";
 import {
-  LayoutDashboard,
-  CalendarDays,
-  Users,
-  DollarSign,
-  Package,
-  Settings,
   TrendingUp,
   TrendingDown,
   ArrowUpRight,
-  ArrowDownRight,
   Download,
   CheckCircle2,
   Wallet,
   BarChart2,
-  BrainCircuit,
+  FileText,
+  InboxIcon,
 } from "lucide-react";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -40,61 +34,32 @@ const fmt = (n: number) =>
 const fmtAxis = (v: number) =>
   v === 0 ? "0" : `${(v / 1000).toFixed(0)}k`;
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Data — zerado (sem dados simulados) ──────────────────────────────────────
 
-const cashFlowData = [
-  { month: "Dez", entradas: 38200, saidas: 28000, saldo: 10200 },
-  { month: "Jan", entradas: 41000, saidas: 29500, saldo: 11500 },
-  { month: "Fev", entradas: 38600, saidas: 27800, saldo: 10800 },
-  { month: "Mar", entradas: 44300, saidas: 31200, saldo: 13100 },
-  { month: "Abr", entradas: 47100, saidas: 32100, saldo: 15000 },
-  { month: "Mai", entradas: 52800, saidas: 31400, saldo: 21400 },
-];
+const cashFlowData: { month: string; entradas: number; saidas: number; saldo: number }[] = [];
 
-const expensesData = [
-  { name: "Salários",  value: 14200, pct: "45%" },
-  { name: "Materiais", value: 8900,  pct: "28%" },
-  { name: "Impostos",  value: 4224,  pct: "13%" },
-  { name: "Aluguel",   value: 3600,  pct: "11%" },
-  { name: "Outros",    value: 536,   pct: "2%"  },
-];
+const expensesData: { name: string; value: number; pct: string }[] = [];
 const PIE_COLORS = ["#3B82F6", "#1D9E75", "#EF9F27", "#8B5CF6", "#6B7280"];
 
 type DreType = "item" | "subtotal" | "total";
 const dreRows: { prefix: string; label: string; value: number; type: DreType; red?: boolean; indent?: boolean; note?: string }[] = [
-  { prefix: "+", label: "Receita bruta",        value: 52800, type: "item"     },
-  { prefix: "−", label: "Impostos Simples ~8%", value: 4224,  type: "item", red: true },
-  { prefix: "=", label: "Receita líquida",      value: 48576, type: "subtotal" },
-  { prefix: "−", label: "Materiais e insumos",  value: 8900,  type: "item", red: true, indent: true },
-  { prefix: "−", label: "Salários e pro-labore",value: 14200, type: "item", red: true, indent: true },
-  { prefix: "−", label: "Aluguel e condomínio", value: 3600,  type: "item", red: true, indent: true },
-  { prefix: "−", label: "Outras despesas",      value: 760,   type: "item", red: true, indent: true },
-  { prefix: "=", label: "LUCRO LÍQUIDO",        value: 21340, type: "total", note: "Margem 40,4%" },
+  { prefix: "+", label: "Receita bruta",         value: 0, type: "item"     },
+  { prefix: "−", label: "Impostos (~8%)",         value: 0, type: "item", red: true },
+  { prefix: "=", label: "Receita líquida",        value: 0, type: "subtotal" },
+  { prefix: "−", label: "Materiais e insumos",    value: 0, type: "item", red: true, indent: true },
+  { prefix: "−", label: "Salários e pro-labore",  value: 0, type: "item", red: true, indent: true },
+  { prefix: "−", label: "Aluguel e condomínio",   value: 0, type: "item", red: true, indent: true },
+  { prefix: "−", label: "Outras despesas",         value: 0, type: "item", red: true, indent: true },
+  { prefix: "=", label: "LUCRO LÍQUIDO",           value: 0, type: "total", note: "Margem —" },
 ];
 
 type RecStatus = "VENCIDA" | "HOJE" | "PENDENTE" | "PAGO";
 interface Receivable { id: number; patient: string; desc: string; due: string; status: RecStatus; value: number }
-const receivablesBase: Receivable[] = [
-  { id: 1, patient: "João Silva",    desc: "Implante P2",   due: "01/05/2026", status: "VENCIDA",  value: 1800 },
-  { id: 2, patient: "Maria Lopes",   desc: "Ortodontia P3", due: "26/05/2026", status: "HOJE",     value: 980  },
-  { id: 3, patient: "Carlos Mota",   desc: "Clareamento",   due: "28/05/2026", status: "PENDENTE", value: 600  },
-  { id: 4, patient: "Ana Ferreira",  desc: "Consulta",      due: "30/05/2026", status: "PENDENTE", value: 250  },
-  { id: 5, patient: "Pedro Santos",  desc: "Implante P1",   due: "15/04/2026", status: "VENCIDA",  value: 2400 },
-  { id: 6, patient: "Lucia Rocha",   desc: "Ortodontia P5", due: "10/05/2026", status: "VENCIDA",  value: 600  },
-];
+const receivablesBase: Receivable[] = [];
 
-const payables = [
-  { id: 1, desc: "Aluguel clínica",      due: "05/06/2026", value: 3600  },
-  { id: 2, desc: "Salários + encargos",  due: "05/06/2026", value: 14200 },
-  { id: 3, desc: "DentDist materiais",   due: "10/06/2026", value: 2300  },
-  { id: 4, desc: "DAS Simples Nacional", due: "20/06/2026", value: 4224  },
-];
+const payables: { id: number; desc: string; due: string; value: number }[] = [];
 
-const forecastMonths = [
-  { month: "Junho",  receita: 54000, despesas: 32000, lucro: 22000 },
-  { month: "Julho",  receita: 56000, despesas: 32500, lucro: 23500 },
-  { month: "Agosto", receita: 58000, despesas: 33000, lucro: 25000 },
-];
+const forecastMonths: { month: string; receita: number; despesas: number; lucro: number }[] = [];
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -114,19 +79,28 @@ function StatusBadge({ status }: { status: RecStatus }) {
   );
 }
 
-// ── Tooth icon ────────────────────────────────────────────────────────────────
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ icon: Icon = InboxIcon, message }: { icon?: React.ElementType; message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+      <Icon size={28} className="text-white/15" />
+      <p className="text-sm text-white/35">{message}</p>
+    </div>
+  );
+}
 
 import { Sidebar } from "@/components/Sidebar";
 
 // ── Topbar ────────────────────────────────────────────────────────────────────
 
 function Topbar() {
-  const [month, setMonth] = useState("2026-05");
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   return (
     <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-6 bg-[#0C0F1A]/80 backdrop-blur-md border-b border-white/[0.06]">
       <div>
         <h1 className="text-base font-bold text-white">Financeiro</h1>
-        <p className="text-xs text-gray-500">Maio 2026</p>
+        <p className="text-xs text-gray-500">Sem dados lançados ainda</p>
       </div>
       <div className="flex items-center gap-3">
         <input
@@ -150,27 +124,27 @@ function SummaryCards() {
   const cards = [
     {
       label: "Receita bruta",
-      value: fmt(52800),
-      badge: "+12% vs abril",
-      badgeColor: "#1D9E75",
+      value: fmt(0),
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Icon: TrendingUp,
       Arrow: ArrowUpRight,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
     },
     {
       label: "Despesas totais",
-      value: fmt(31460),
-      badge: "+3% vs abril",
-      badgeColor: "#E24B4A",
+      value: fmt(0),
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Icon: TrendingDown,
       Arrow: ArrowUpRight,
       iconCls: "text-[#E24B4A] bg-[#E24B4A]/10",
     },
     {
       label: "Saldo atual",
-      value: fmt(27140),
-      badge: "Fluxo positivo",
-      badgeColor: "#1D9E75",
+      value: fmt(0),
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Icon: Wallet,
       Arrow: ArrowUpRight,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
@@ -189,7 +163,6 @@ function SummaryCards() {
           </div>
           <p className="text-2xl font-bold text-white mb-1.5 tabular-nums">{value}</p>
           <span className="inline-flex items-center gap-0.5 text-xs font-medium" style={{ color: badgeColor }}>
-            <Arrow size={12} />
             {badge}
           </span>
         </div>
@@ -205,7 +178,7 @@ function DRE() {
     <div className="bg-[#131726] rounded-xl border border-white/[0.06] overflow-hidden">
       <div className="px-6 py-4 border-b border-white/[0.06]">
         <h3 className="text-white font-semibold text-sm">DRE — Demonstrativo de Resultado</h3>
-        <p className="text-xs text-gray-500 mt-0.5">Competência: Maio 2026</p>
+        <p className="text-xs text-gray-500 mt-0.5">Aguardando lançamentos financeiros</p>
       </div>
 
       <div className="divide-y divide-white/[0.04]">
@@ -286,63 +259,64 @@ function Receivables() {
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
         <h3 className="text-white font-semibold text-sm">Contas a Receber</h3>
         <span className="bg-[#1D9E75]/10 text-[#1D9E75] text-xs font-bold px-2.5 py-1 rounded-full">
-          R$ 14.200
+          {fmt(0)}
         </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/[0.06]">
-              {["Paciente", "Descrição", "Vencimento", "Status", "Valor", ""].map((h) => (
-                <th key={h} className="text-left text-xs text-gray-500 font-medium px-5 py-2.5">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/[0.04]">
-            {items.map((r) => (
-              <tr key={r.id} className="hover:bg-white/[0.02] transition-colors group">
-                <td className="px-5 py-3 text-white font-medium whitespace-nowrap">{r.patient}</td>
-                <td className="px-5 py-3 text-gray-400 whitespace-nowrap">{r.desc}</td>
-                <td className="px-5 py-3 text-gray-400 whitespace-nowrap font-mono text-xs">{r.due}</td>
-                <td className="px-5 py-3">
-                  <StatusBadge status={r.status} />
-                </td>
-                <td className="px-5 py-3 text-white font-semibold tabular-nums whitespace-nowrap">
-                  {fmt(r.value)}
-                </td>
-                <td className="px-5 py-3">
-                  {r.status !== "PAGO" ? (
-                    <button
-                      onClick={() => markPaid(r.id)}
-                      className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#1D9E75] transition-colors opacity-0 group-hover:opacity-100 whitespace-nowrap"
-                    >
-                      <CheckCircle2 size={13} />
-                      Marcar como pago
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-[#1D9E75]">
-                      <CheckCircle2 size={13} />
-                      Pago
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06] mt-auto">
-        <span className="text-xs text-gray-500">
-          {items.filter((r) => r.status === "VENCIDA").length} vencidas
-        </span>
-        <span className="text-xs font-semibold text-[#E24B4A]">
-          Total vencido: {fmt(totalVencido)}
-        </span>
-      </div>
+      {items.length === 0 ? (
+        <EmptyState icon={CheckCircle2} message="Nenhuma conta a receber cadastrada" />
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  {["Paciente", "Descrição", "Vencimento", "Status", "Valor", ""].map((h) => (
+                    <th key={h} className="text-left text-xs text-gray-500 font-medium px-5 py-2.5">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {items.map((r) => (
+                  <tr key={r.id} className="hover:bg-white/[0.02] transition-colors group">
+                    <td className="px-5 py-3 text-white font-medium whitespace-nowrap">{r.patient}</td>
+                    <td className="px-5 py-3 text-gray-400 whitespace-nowrap">{r.desc}</td>
+                    <td className="px-5 py-3 text-gray-400 whitespace-nowrap font-mono text-xs">{r.due}</td>
+                    <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
+                    <td className="px-5 py-3 text-white font-semibold tabular-nums whitespace-nowrap">{fmt(r.value)}</td>
+                    <td className="px-5 py-3">
+                      {r.status !== "PAGO" ? (
+                        <button
+                          onClick={() => markPaid(r.id)}
+                          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#1D9E75] transition-colors opacity-0 group-hover:opacity-100 whitespace-nowrap"
+                        >
+                          <CheckCircle2 size={13} />
+                          Marcar como pago
+                        </button>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-[#1D9E75]">
+                          <CheckCircle2 size={13} />
+                          Pago
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06] mt-auto">
+            <span className="text-xs text-gray-500">
+              {items.filter((r) => r.status === "VENCIDA").length} vencidas
+            </span>
+            <span className="text-xs font-semibold text-[#E24B4A]">
+              Total vencido: {fmt(totalVencido)}
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -357,49 +331,52 @@ function Payables() {
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
         <div>
           <h3 className="text-white font-semibold text-sm">Contas a Pagar</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Junho 2026</p>
+          <p className="text-xs text-gray-500 mt-0.5">Sem lançamentos</p>
         </div>
         <span className="bg-[#E24B4A]/10 text-[#E24B4A] text-xs font-bold px-2.5 py-1 rounded-full">
-          R$ 24.324
+          {fmt(total)}
         </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/[0.06]">
-              {["Descrição", "Vencimento", "Status", "Valor"].map((h) => (
-                <th key={h} className="text-left text-xs text-gray-500 font-medium px-5 py-2.5">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/[0.04]">
-            {payables.map((p) => (
-              <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                <td className="px-5 py-3 text-white font-medium">{p.desc}</td>
-                <td className="px-5 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">{p.due}</td>
-                <td className="px-5 py-3">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide bg-white/[0.06] text-gray-400">
-                    PENDENTE
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-white font-semibold tabular-nums whitespace-nowrap">
-                  {fmt(p.value)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06] mt-auto">
-        <span className="text-xs text-gray-500">4 lançamentos</span>
-        <span className="text-xs font-semibold text-white">
-          Total junho: {fmt(total)}
-        </span>
-      </div>
+      {payables.length === 0 ? (
+        <EmptyState icon={FileText} message="Nenhuma conta a pagar cadastrada" />
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  {["Descrição", "Vencimento", "Status", "Valor"].map((h) => (
+                    <th key={h} className="text-left text-xs text-gray-500 font-medium px-5 py-2.5">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {payables.map((p) => (
+                  <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-5 py-3 text-white font-medium">{p.desc}</td>
+                    <td className="px-5 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">{p.due}</td>
+                    <td className="px-5 py-3">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide bg-white/[0.06] text-gray-400">
+                        PENDENTE
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-white font-semibold tabular-nums whitespace-nowrap">
+                      {fmt(p.value)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06] mt-auto">
+            <span className="text-xs text-gray-500">{payables.length} lançamentos</span>
+            <span className="text-xs font-semibold text-white">Total: {fmt(total)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -408,11 +385,7 @@ function Payables() {
 
 function CashFlowTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey: string; color: string; value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
-  const labels: Record<string, string> = {
-    entradas: "Entradas",
-    saidas:   "Saídas",
-    saldo:    "Saldo",
-  };
+  const labels: Record<string, string> = { entradas: "Entradas", saidas: "Saídas", saldo: "Saldo" };
   return (
     <div className="bg-[#1A1E2E] border border-white/10 rounded-xl p-3 shadow-2xl text-xs">
       <p className="text-gray-400 font-medium mb-2">{label}</p>
@@ -431,45 +404,43 @@ function CashFlowChart() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-white font-semibold text-sm">Fluxo de Caixa</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Últimos 6 meses</p>
+          <p className="text-xs text-gray-500 mt-0.5">Histórico mensal</p>
         </div>
         <div className="flex items-center gap-5 text-xs text-gray-500">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#1D9E75]" />
-            Entradas
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#E24B4A]" />
-            Saídas
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-white/60 rounded-full" />
-            Saldo
-          </span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#1D9E75]" />Entradas</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#E24B4A]" />Saídas</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-white/60 rounded-full" />Saldo</span>
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={cashFlowData} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
-          <defs>
-            <linearGradient id="gradEntradas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}    />
-            </linearGradient>
-            <linearGradient id="gradSaidas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#E24B4A" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#E24B4A" stopOpacity={0}   />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis dataKey="month" tick={{ fill: "#6b7280", fontSize: 12 }} axisLine={false} tickLine={false} />
-          <YAxis tickFormatter={fmtAxis} tick={{ fill: "#6b7280", fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, "auto"]} />
-          <Tooltip content={<CashFlowTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-          <Area type="monotone" dataKey="entradas" stroke="#1D9E75" strokeWidth={2} fill="url(#gradEntradas)" dot={false} />
-          <Area type="monotone" dataKey="saidas"   stroke="#E24B4A" strokeWidth={2} fill="url(#gradSaidas)"   dot={false} />
-          <Line  type="monotone" dataKey="saldo"   stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} strokeDasharray="4 3" dot={{ fill: "rgba(255,255,255,0.6)", r: 3, strokeWidth: 0 }} />
-        </ComposedChart>
-      </ResponsiveContainer>
+      {cashFlowData.length === 0 ? (
+        <div className="h-60 flex flex-col items-center justify-center gap-3">
+          <BarChart2 size={32} className="text-white/10" />
+          <p className="text-sm text-white/30">Sem histórico de fluxo de caixa</p>
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={cashFlowData} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+            <defs>
+              <linearGradient id="gradEntradas" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}    />
+              </linearGradient>
+              <linearGradient id="gradSaidas" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#E24B4A" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#E24B4A" stopOpacity={0}   />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis dataKey="month" tick={{ fill: "#6b7280", fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={fmtAxis} tick={{ fill: "#6b7280", fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, "auto"]} />
+            <Tooltip content={<CashFlowTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+            <Area type="monotone" dataKey="entradas" stroke="#1D9E75" strokeWidth={2} fill="url(#gradEntradas)" dot={false} />
+            <Area type="monotone" dataKey="saidas"   stroke="#E24B4A" strokeWidth={2} fill="url(#gradSaidas)"   dot={false} />
+            <Line  type="monotone" dataKey="saldo"   stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} strokeDasharray="4 3" dot={{ fill: "rgba(255,255,255,0.6)", r: 3, strokeWidth: 0 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }
@@ -497,42 +468,34 @@ function ExpensesPie() {
         <p className="text-xs text-gray-500 mt-0.5">Total: {fmt(total)}</p>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="shrink-0">
-          <PieChart width={180} height={180}>
-            <Pie
-              data={expensesData}
-              cx={90}
-              cy={90}
-              innerRadius={52}
-              outerRadius={80}
-              paddingAngle={3}
-              dataKey="value"
-              strokeWidth={0}
-            >
-              {expensesData.map((_, i) => (
-                <Cell key={i} fill={PIE_COLORS[i]} />
-              ))}
-            </Pie>
-            <Tooltip content={<PieTooltip />} />
-          </PieChart>
-        </div>
-
-        <div className="flex-1 space-y-2.5 min-w-0">
-          {expensesData.map((d, i) => (
-            <div key={d.name} className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i] }} />
-                <span className="text-xs text-gray-400 truncate">{d.name}</span>
+      {expensesData.length === 0 ? (
+        <EmptyState message="Sem despesas registradas" />
+      ) : (
+        <div className="flex items-center gap-4">
+          <div className="shrink-0">
+            <PieChart width={180} height={180}>
+              <Pie data={expensesData} cx={90} cy={90} innerRadius={52} outerRadius={80} paddingAngle={3} dataKey="value" strokeWidth={0}>
+                {expensesData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
+              </Pie>
+              <Tooltip content={<PieTooltip />} />
+            </PieChart>
+          </div>
+          <div className="flex-1 space-y-2.5 min-w-0">
+            {expensesData.map((d, i) => (
+              <div key={d.name} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i] }} />
+                  <span className="text-xs text-gray-400 truncate">{d.name}</span>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs text-white font-semibold">{fmt(d.value)}</span>
+                  <span className="text-xs text-gray-600 ml-1">{d.pct}</span>
+                </div>
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-xs text-white font-semibold">{fmt(d.value)}</span>
-                <span className="text-xs text-gray-600 ml-1">{d.pct}</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -547,34 +510,39 @@ function Forecast() {
         <p className="text-xs text-gray-500 mt-0.5">Próximos 3 meses</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        {forecastMonths.map((m) => (
-          <div key={m.month} className="bg-[#0C0F1A] rounded-xl p-4 border border-white/[0.06]">
-            <p className="text-xs text-gray-500 font-medium mb-3">{m.month}</p>
-            <div className="space-y-2">
-              <div>
-                <p className="text-[10px] text-gray-600 mb-0.5">Receita</p>
-                <p className="text-sm font-bold text-[#1D9E75] tabular-nums">{fmt(m.receita)}</p>
+      {forecastMonths.length === 0 ? (
+        <EmptyState message="Sem dados suficientes para previsão. Registre receitas e despesas para ativar esta funcionalidade." />
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {forecastMonths.map((m) => (
+              <div key={m.month} className="bg-[#0C0F1A] rounded-xl p-4 border border-white/[0.06]">
+                <p className="text-xs text-gray-500 font-medium mb-3">{m.month}</p>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[10px] text-gray-600 mb-0.5">Receita</p>
+                    <p className="text-sm font-bold text-[#1D9E75] tabular-nums">{fmt(m.receita)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-600 mb-0.5">Despesas</p>
+                    <p className="text-sm font-semibold text-[#E24B4A] tabular-nums">{fmt(m.despesas)}</p>
+                  </div>
+                  <div className="pt-2 border-t border-white/[0.06]">
+                    <p className="text-[10px] text-gray-600 mb-0.5">Lucro</p>
+                    <p className="text-sm font-bold text-white tabular-nums">{fmt(m.lucro)}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] text-gray-600 mb-0.5">Despesas</p>
-                <p className="text-sm font-semibold text-[#E24B4A] tabular-nums">{fmt(m.despesas)}</p>
-              </div>
-              <div className="pt-2 border-t border-white/[0.06]">
-                <p className="text-[10px] text-gray-600 mb-0.5">Lucro</p>
-                <p className="text-sm font-bold text-white tabular-nums">{fmt(m.lucro)}</p>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div className="flex items-start gap-2 bg-white/[0.03] rounded-lg px-4 py-3 border border-white/[0.04]">
-        <span className="text-[#3B82F6] mt-0.5 shrink-0">ℹ</span>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          Baseado na média dos últimos 3 meses + tendência de crescimento de 4% a.m.
-        </p>
-      </div>
+          <div className="flex items-start gap-2 bg-white/[0.03] rounded-lg px-4 py-3 border border-white/[0.04]">
+            <span className="text-[#3B82F6] mt-0.5 shrink-0">ℹ</span>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Baseado na média dos últimos 3 meses + tendência de crescimento.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

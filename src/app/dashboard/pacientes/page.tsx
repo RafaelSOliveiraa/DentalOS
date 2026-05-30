@@ -603,8 +603,12 @@ export default function PacientesPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  // P3: use real DB patients for balance, not static demo data
   const totalBalance = allPatients.reduce((s, p) => s + p.balance, 0);
+
+  /* KPIs computados a partir dos dados reais */
+  const kpiAtivos        = allPatients.filter(p => p.status === "ATIVO").length;
+  const kpiNovos         = allPatients.filter(p => p.status === "NOVO").length;
+  const kpiInadimplentes = allPatients.filter(p => p.status === "INADIMPLENTE").length;
 
   const STATUS_CHIPS: Array<{ label: string; value: PatientStatus | "Todos" }> = [
     { label: "Todos",         value: "Todos" },
@@ -622,7 +626,7 @@ export default function PacientesPage() {
         <div className="sticky top-0 z-20 border-b border-white/[0.06] px-6 py-4 flex items-center justify-between" style={{ background: "rgba(12,15,26,0.95)", backdropFilter: "blur(12px)" }}>
           <div className="flex items-center gap-3">
             <h1 className="text-white font-bold text-lg">Pacientes</h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}>148 ativos</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75" }}>{kpiAtivos} ativo{kpiAtivos !== 1 ? "s" : ""}</span>
             <span className="text-white/25 text-sm">— Gestão Completa</span>
           </div>
           <div className="flex items-center gap-2">
@@ -638,10 +642,10 @@ export default function PacientesPage() {
         <div className="p-6 space-y-6">
           {/* KPIs */}
           <div className="grid grid-cols-4 gap-4">
-            <KpiCard icon={Users}       label="Pacientes Ativos"    value="148"      sub="+5 este mês"        accent="#1D9E75" />
-            <KpiCard icon={Sparkles}    label="Novos este mês"      value="18"       sub="+3 vs. abril"       accent="#5B8DEF" />
-            <KpiCard icon={AlertCircle} label="Inadimplentes"       value="6"        sub="R$ 4.800 em aberto" accent="#E24B4A" />
-            <KpiCard icon={TrendingUp}  label="Taxa de retorno"     value="72%"      sub="meta: 80%"          accent="#EF9F27" />
+            <KpiCard icon={Users}       label="Pacientes Ativos"   value={String(kpiAtivos)}         sub={kpiAtivos === 0 ? "Nenhum cadastrado" : kpiAtivos + " ativo" + (kpiAtivos !== 1 ? "s" : "")}                 accent="#1D9E75" />
+            <KpiCard icon={Sparkles}    label="Novos"              value={String(kpiNovos)}          sub={kpiNovos === 0 ? "Nenhum novo" : kpiNovos + " novo" + (kpiNovos !== 1 ? "s" : "")}                          accent="#5B8DEF" />
+            <KpiCard icon={AlertCircle} label="Inadimplentes"      value={String(kpiInadimplentes)}  sub={kpiInadimplentes === 0 ? "Nenhum em atraso" : kpiInadimplentes + " com pendência"}                           accent="#E24B4A" />
+            <KpiCard icon={TrendingUp}  label="Total de pacientes" value={String(allPatients.length)} sub={allPatients.length === 0 ? "Nenhum cadastrado" : allPatients.length + " no total"}                          accent="#EF9F27" />
           </div>
 
           {/* Filters */}

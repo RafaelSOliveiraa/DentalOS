@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ComposedChart,
   Bar,
@@ -65,32 +65,13 @@ function useCountUp(target: number, started: boolean, ms = 1200) {
 
 // ── Static data ───────────────────────────────────────────────────────────────
 
-const revenueData = [
-  { month: "Dez", faturamento: 38200, lucro: 14800 },
-  { month: "Jan", faturamento: 41000, lucro: 16200 },
-  { month: "Fev", faturamento: 38600, lucro: 14900 },
-  { month: "Mar", faturamento: 44300, lucro: 17400 },
-  { month: "Abr", faturamento: 47100, lucro: 18600 },
-  { month: "Mai", faturamento: 52800, lucro: 21300 },
-];
+const revenueData: { month: string; faturamento: number; lucro: number }[] = [];
 
-const alertItems = [
-  { id: 1, level: "red" as const,  Icon: CreditCard, text: "6 parcelas vencidas",            sub: "R$ 4.800 em atraso"       },
-  { id: 2, level: "blue" as const, Icon: Target,     text: "Meta a R$ 2.200 de ser atingida", sub: "4 dias úteis restantes"   },
-];
+const alertItems: { id: number; level: "red" | "yellow" | "blue"; Icon: React.ElementType; text: string; sub: string }[] = [];
 
-const procedureItems = [
-  { name: "Implante",    revenue: 19200, count: 8  },
-  { name: "Ortodontia",  revenue: 13600, count: 17 },
-  { name: "Clareamento", revenue: 8700,  count: 29 },
-  { name: "Restauração", revenue: 5100,  count: 34 },
-];
+const procedureItems: { name: string; revenue: number; count: number }[] = [];
 
-const dentistItems = [
-  { name: "Dra. Ana Paula", occupancy: 85, revenue: 28400 },
-  { name: "Dr. Bruno",      occupancy: 72, revenue: 15200 },
-  { name: "Dra. Carla",     occupancy: 61, revenue: 9200  },
-];
+const dentistItems: { name: string; occupancy: number; revenue: number }[] = [];
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
@@ -128,7 +109,7 @@ function Topbar() {
     <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-6 bg-[#0C0F1A]/80 backdrop-blur-md border-b border-white/[0.06]">
       <div>
         <h1 className="text-base font-bold text-white">Dashboard</h1>
-        <p className="text-xs text-gray-500">Maio 2026</p>
+        <p className="text-xs text-gray-500">{new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</p>
       </div>
       <button className="relative p-2 rounded-lg hover:bg-white/[0.05] transition-colors">
         <Bell size={18} className="text-gray-400" />
@@ -143,17 +124,17 @@ function Topbar() {
 // ── Row 1 — Financial KPIs ────────────────────────────────────────────────────
 
 function FinancialKPIs({ started }: { started: boolean }) {
-  const faturamento = useCountUp(52800, started);
-  const lucro       = useCountUp(21340, started);
-  const aReceber    = useCountUp(14200, started);
-  const saldo       = useCountUp(27140, started);
+  const faturamento = useCountUp(0, started);
+  const lucro       = useCountUp(0, started);
+  const aReceber    = useCountUp(0, started);
+  const saldo       = useCountUp(0, started);
 
   const cards = [
     {
       label: "Faturamento do mês",
       value: faturamento,
-      badge: "+12% vs mês anterior",
-      badgeColor: "#1D9E75",
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Arrow: ArrowUpRight,
       Icon: TrendingUp,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
@@ -161,8 +142,8 @@ function FinancialKPIs({ started }: { started: boolean }) {
     {
       label: "Lucro líquido",
       value: lucro,
-      badge: "Margem 40,4%",
-      badgeColor: "#1D9E75",
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Arrow: ArrowUpRight,
       Icon: DollarSign,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
@@ -170,8 +151,8 @@ function FinancialKPIs({ started }: { started: boolean }) {
     {
       label: "A receber",
       value: aReceber,
-      badge: "6 em atraso",
-      badgeColor: "#EF9F27",
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Arrow: ArrowRight,
       Icon: CreditCard,
       iconCls: "text-[#EF9F27] bg-[#EF9F27]/10",
@@ -179,8 +160,8 @@ function FinancialKPIs({ started }: { started: boolean }) {
     {
       label: "Saldo em caixa",
       value: saldo,
-      badge: "Fluxo positivo",
-      badgeColor: "#1D9E75",
+      badge: "Sem dados",
+      badgeColor: "#6B7280",
       Arrow: ArrowUpRight,
       Icon: Wallet,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
@@ -219,10 +200,10 @@ function FinancialKPIs({ started }: { started: boolean }) {
 // ── Row 2 — Operational KPIs ──────────────────────────────────────────────────
 
 function OperationalKPIs({ started }: { started: boolean }) {
-  const ocupacao = useCountUp(78,  started);
-  const ticket   = useCountUp(357, started);
-  const faltas   = useCountUp(8,   started);
-  const novos    = useCountUp(18,  started);
+  const ocupacao = useCountUp(0, started);
+  const ticket   = useCountUp(0, started);
+  const faltas   = useCountUp(0, started);
+  const novos    = useCountUp(0, started);
 
   return (
     <div className="grid grid-cols-4 gap-4">
@@ -258,9 +239,8 @@ function OperationalKPIs({ started }: { started: boolean }) {
         {started ? (
           <>
             <p className="text-2xl font-bold text-white mb-1.5 tabular-nums">{fmt(ticket)}</p>
-            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-[#1D9E75]">
-              <ArrowUpRight size={12} />
-              +R$ 22 vs mês anterior
+            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-gray-500">
+              Sem dados
             </span>
           </>
         ) : (
@@ -306,9 +286,8 @@ function OperationalKPIs({ started }: { started: boolean }) {
         {started ? (
           <>
             <p className="text-2xl font-bold text-white mb-1.5 tabular-nums">{novos}</p>
-            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-[#1D9E75]">
-              <ArrowUpRight size={12} />
-              +3 vs mês anterior
+            <span className="inline-flex items-center gap-0.5 text-xs font-medium text-gray-500">
+              Sem dados
             </span>
           </>
         ) : (
@@ -325,33 +304,33 @@ function OperationalKPIs({ started }: { started: boolean }) {
 // ── Row 3 — Monthly Goal ──────────────────────────────────────────────────────
 
 function MonthlyGoal() {
-  const current = 52800;
+  const current = 0;
   const goal    = 55000;
-  const pct     = Math.round((current / goal) * 100);
-  const color   = pct >= 80 ? "#1D9E75" : pct >= 50 ? "#EF9F27" : "#E24B4A";
+  const pct     = goal > 0 ? Math.round((current / goal) * 100) : 0;
+  const color   = "#6B7280";
 
   return (
     <div className="bg-[#131726] rounded-xl p-6 border border-white/[0.06]">
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h3 className="text-white font-semibold">Meta maio: R$ 55.000</h3>
-          <p className="text-gray-500 text-sm mt-1">Falta R$ 2.200 — 4 dias úteis restantes</p>
+          <h3 className="text-white font-semibold">Meta mensal: R$ 55.000</h3>
+          <p className="text-gray-500 text-sm mt-1">Sem receita registrada ainda</p>
         </div>
-        <div className="text-right bg-[#1D9E75]/10 border border-[#1D9E75]/20 rounded-xl px-5 py-3">
+        <div className="text-right bg-white/[0.04] border border-white/[0.06] rounded-xl px-5 py-3">
           <p className="text-xs text-gray-500 mb-0.5">Previsão de fechamento</p>
-          <p className="text-lg font-bold text-[#1D9E75]">R$ 54.100</p>
+          <p className="text-lg font-bold text-gray-500">—</p>
         </div>
       </div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-gray-400">
-          R$ 52.800 <span className="text-gray-600">de R$ 55.000</span>
+          R$ 0 <span className="text-gray-600">de R$ 55.000</span>
         </span>
-        <span className="text-sm font-bold tabular-nums" style={{ color }}>{pct}%</span>
+        <span className="text-sm font-bold tabular-nums text-gray-500">{pct}%</span>
       </div>
       <div className="w-full bg-white/[0.06] rounded-full h-3 overflow-hidden">
         <div
           className="h-3 rounded-full transition-all duration-1000"
-          style={{ width: `${pct}%`, backgroundColor: color, boxShadow: `0 0 14px ${color}55` }}
+          style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
     </div>
@@ -394,6 +373,12 @@ function RevenueChart() {
         </div>
       </div>
       <div className="flex-1">
+        {revenueData.length === 0 ? (
+          <div className="h-[230px] flex flex-col items-center justify-center gap-3">
+            <TrendingUp size={32} className="text-white/10" />
+            <p className="text-sm text-white/30">Sem dados de faturamento ainda</p>
+          </div>
+        ) : (
         <ResponsiveContainer width="100%" height={230}>
           <ComposedChart data={revenueData} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -422,6 +407,7 @@ function RevenueChart() {
             />
           </ComposedChart>
         </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
@@ -440,33 +426,43 @@ function AlertsPanel() {
     <div className="bg-[#131726] rounded-xl p-5 border border-white/[0.06] flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-semibold text-sm">Requer atenção agora</h3>
-        <span className="bg-[#E24B4A]/10 text-[#E24B4A] text-xs font-bold px-2 py-0.5 rounded-full">
-          1 crítico
-        </span>
+        {alertItems.length > 0 && (
+          <span className="bg-[#E24B4A]/10 text-[#E24B4A] text-xs font-bold px-2 py-0.5 rounded-full">
+            {alertItems.filter(a => a.level === "red").length} crítico{alertItems.filter(a => a.level === "red").length !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
-      <div className="flex-1 space-y-2">
-        {alertItems.map(({ id, level, Icon, text, sub }) => {
-          const s = alertStyle[level];
-          return (
-            <div
-              key={id}
-              className="flex items-start gap-3 p-3 rounded-lg"
-              style={{ backgroundColor: s.bg }}
-            >
-              <Icon size={15} className="mt-0.5 shrink-0" style={{ color: s.text }} />
-              <div className="min-w-0">
-                <p className="text-sm text-white font-medium leading-snug">{text}</p>
-                <p className="text-xs mt-0.5" style={{ color: s.text }}>{sub}</p>
+      {alertItems.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-8">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(29,158,117,0.10)" }}>
+            <Target size={18} className="text-[#1D9E75]" />
+          </div>
+          <p className="text-sm text-white/50 font-medium">Nenhum alerta no momento</p>
+          <p className="text-xs text-white/25 max-w-[180px]">Os alertas aparecerão aqui conforme você usar o sistema.</p>
+        </div>
+      ) : (
+        <div className="flex-1 space-y-2">
+          {alertItems.map(({ id, level, Icon, text, sub }) => {
+            const s = alertStyle[level];
+            return (
+              <div key={id} className="flex items-start gap-3 p-3 rounded-lg" style={{ backgroundColor: s.bg }}>
+                <Icon size={15} className="mt-0.5 shrink-0" style={{ color: s.text }} />
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-medium leading-snug">{text}</p>
+                  <p className="text-xs mt-0.5" style={{ color: s.text }}>{sub}</p>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
-      <button className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 py-2.5 rounded-lg border border-white/[0.06] hover:border-white/10 transition-all">
-        Ver todos <ChevronRight size={14} />
-      </button>
+      {alertItems.length > 0 && (
+        <button className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 py-2.5 rounded-lg border border-white/[0.06] hover:border-white/10 transition-all">
+          Ver todos <ChevronRight size={14} />
+        </button>
+      )}
     </div>
   );
 }
@@ -474,24 +470,31 @@ function AlertsPanel() {
 // ── Row 5 — Top Procedures ────────────────────────────────────────────────────
 
 function TopProcedures() {
-  const max = procedureItems[0].revenue;
+  const max = procedureItems[0]?.revenue ?? 1;
   return (
     <div className="bg-[#131726] rounded-xl p-5 border border-white/[0.06]">
       <h3 className="text-white font-semibold text-sm mb-4">Top procedimentos</h3>
-      <div className="space-y-4">
-        {procedureItems.map((p) => (
-          <div key={p.name}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm text-gray-300">{p.name}</span>
-              <div>
-                <span className="text-sm text-white font-semibold">{fmt(p.revenue)}</span>
-                <span className="text-xs text-gray-500 ml-1.5">{p.count} proc.</span>
+      {procedureItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+          <TrendingUp size={24} className="text-white/15" />
+          <p className="text-sm text-white/35">Sem dados de procedimentos</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {procedureItems.map((p) => (
+            <div key={p.name}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm text-gray-300">{p.name}</span>
+                <div>
+                  <span className="text-sm text-white font-semibold">{fmt(p.revenue)}</span>
+                  <span className="text-xs text-gray-500 ml-1.5">{p.count} proc.</span>
+                </div>
               </div>
+              <ProgressBar pct={Math.round((p.revenue / max) * 100)} />
             </div>
-            <ProgressBar pct={Math.round((p.revenue / max) * 100)} />
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -505,25 +508,30 @@ function DentistOccupancy() {
   return (
     <div className="bg-[#131726] rounded-xl p-5 border border-white/[0.06]">
       <h3 className="text-white font-semibold text-sm mb-4">Ocupação por dentista</h3>
-      <div className="space-y-5">
-        {dentistItems.map((d) => {
-          const color = barColor(d.occupancy);
-          return (
-            <div key={d.name}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm text-gray-300">{d.name}</span>
-                <div>
-                  <span className="text-sm font-bold tabular-nums" style={{ color }}>
-                    {d.occupancy}%
-                  </span>
-                  <span className="text-xs text-gray-500 ml-1.5">{fmt(d.revenue)}</span>
+      {dentistItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+          <Users size={24} className="text-white/15" />
+          <p className="text-sm text-white/35">Sem dados de ocupação</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {dentistItems.map((d) => {
+            const color = barColor(d.occupancy);
+            return (
+              <div key={d.name}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-gray-300">{d.name}</span>
+                  <div>
+                    <span className="text-sm font-bold tabular-nums" style={{ color }}>{d.occupancy}%</span>
+                    <span className="text-xs text-gray-500 ml-1.5">{fmt(d.revenue)}</span>
+                  </div>
                 </div>
+                <ProgressBar pct={d.occupancy} color={color} />
               </div>
-              <ProgressBar pct={d.occupancy} color={color} />
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -532,11 +540,11 @@ function DentistOccupancy() {
 
 function FinancialSummary() {
   const rows = [
-    { label: "Contas a pagar em junho", value: "R$ 24.324",  color: "text-white"       },
-    { label: "Maior despesa: Salários", value: "R$ 14.200",  color: "text-white"       },
-    { label: "Impostos provisionados",  value: "R$ 4.224",   color: "text-white"       },
-    { label: "Margem operacional",      value: "40,4%",      color: "text-[#1D9E75]"  },
-    { label: "Taxa de inadimplência",   value: "9,1%",       color: "text-[#E24B4A]"  },
+    { label: "Contas a pagar",       value: "R$ 0",  color: "text-white"      },
+    { label: "Maior despesa",        value: "—",     color: "text-white"      },
+    { label: "Impostos provisionados", value: "R$ 0", color: "text-white"     },
+    { label: "Margem operacional",   value: "—",     color: "text-gray-500"   },
+    { label: "Taxa de inadimplência", value: "—",    color: "text-gray-500"   },
   ];
 
   return (
