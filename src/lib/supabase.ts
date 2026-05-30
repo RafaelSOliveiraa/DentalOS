@@ -1,11 +1,29 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL      || "https://placeholder.supabase.co",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key"
-);
+/* ─── Lazy singleton ─────────────────────────────────────────────────────────
+   createClient() NOT called at import time — only the first time getSupabase()
+   is invoked inside a React Query queryFn (client-side, after hydration).
+   This prevents Vercel from throwing "supabaseUrl is required" / "Invalid
+   supabaseUrl" during static prerendering when env vars are absent or empty.
+──────────────────────────────────────────────────────────────────────────── */
+let _client: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (_client) return _client;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error(
+      "Supabase: missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
+        "Add them in Vercel → Settings → Environment Variables."
+    );
+  }
+  _client = createClient(url, key);
+  return _client;
+}
 
 /* ─── Table types ─── */
+
 export interface DentistaRow {
   id: string;
   nome: string;

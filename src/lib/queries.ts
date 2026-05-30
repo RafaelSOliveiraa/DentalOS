@@ -1,8 +1,9 @@
 /**
  * Centralised Supabase query functions used by React Query hooks.
- * Import into any page as needed.
+ * Each function calls getSupabase() lazily — createClient() is never
+ * executed at module-import time, preventing Vercel prerender errors.
  */
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 import type {
   DentistaRow,
   PacienteRow,
@@ -13,7 +14,7 @@ import type {
 
 /* ─── Dentistas ─── */
 export async function fetchDentistas(): Promise<DentistaRow[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("dentistas")
     .select("*")
     .order("nome");
@@ -24,7 +25,7 @@ export async function fetchDentistas(): Promise<DentistaRow[]> {
 export async function createDentista(
   payload: Omit<DentistaRow, "id" | "created_at" | "updated_at">
 ): Promise<DentistaRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("dentistas")
     .insert(payload)
     .select()
@@ -37,7 +38,7 @@ export async function updateDentista(
   id: string,
   payload: Partial<Omit<DentistaRow, "id" | "created_at">>
 ): Promise<DentistaRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("dentistas")
     .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("id", id)
@@ -49,7 +50,7 @@ export async function updateDentista(
 
 /* ─── Pacientes ─── */
 export async function fetchPacientes(search = ""): Promise<PacienteRow[]> {
-  let q = supabase
+  let q = getSupabase()
     .from("pacientes")
     .select("*")
     .order("nome");
@@ -67,7 +68,7 @@ export async function fetchPacientes(search = ""): Promise<PacienteRow[]> {
 export async function createPaciente(
   payload: Omit<PacienteRow, "id" | "created_at" | "updated_at">
 ): Promise<PacienteRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("pacientes")
     .insert(payload)
     .select()
@@ -77,7 +78,7 @@ export async function createPaciente(
 }
 
 export async function fetchPacienteById(id: string): Promise<PacienteRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("pacientes")
     .select("*")
     .eq("id", id)
@@ -90,7 +91,7 @@ export async function updatePaciente(
   id: string,
   payload: Partial<Omit<PacienteRow, "id" | "created_at">>
 ): Promise<PacienteRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("pacientes")
     .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("id", id)
@@ -104,11 +105,9 @@ export async function updatePaciente(
 export async function fetchAgendamentosByDate(
   date: string
 ): Promise<AgendamentoRow[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("agendamentos")
-    .select(
-      `*, pacientes(nome, telefone), dentistas(nome, cor)`
-    )
+    .select(`*, pacientes(nome, telefone), dentistas(nome, cor)`)
     .eq("data", date)
     .order("hora_inicio");
   if (error) throw error;
@@ -118,7 +117,7 @@ export async function fetchAgendamentosByDate(
 export async function createAgendamento(
   payload: Omit<AgendamentoRow, "id" | "created_at" | "pacientes" | "dentistas">
 ): Promise<AgendamentoRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("agendamentos")
     .insert(payload)
     .select()
@@ -131,7 +130,7 @@ export async function createAgendamento(
 export async function fetchAnamnese(
   pacienteId: string
 ): Promise<AnamneseRow | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("anamneses")
     .select("*")
     .eq("paciente_id", pacienteId)
@@ -143,7 +142,7 @@ export async function fetchAnamnese(
 export async function upsertAnamnese(
   payload: Omit<AnamneseRow, "id" | "updated_at">
 ): Promise<AnamneseRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("anamneses")
     .upsert({ ...payload, updated_at: new Date().toISOString() }, {
       onConflict: "paciente_id",
@@ -158,7 +157,7 @@ export async function upsertAnamnese(
 export async function fetchConsultas(
   pacienteId: string
 ): Promise<ConsultaRow[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("consultas")
     .select(`*, dentistas(nome)`)
     .eq("paciente_id", pacienteId)
@@ -170,7 +169,7 @@ export async function fetchConsultas(
 export async function createConsulta(
   payload: Omit<ConsultaRow, "id" | "created_at" | "dentistas">
 ): Promise<ConsultaRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("consultas")
     .insert(payload)
     .select()
