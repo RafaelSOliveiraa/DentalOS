@@ -971,12 +971,31 @@ function WeekView({
   );
 }
 
+/* ─── Date helpers ─── */
+function addDays(iso: string, n: number): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split("T")[0];
+}
+
+function formatDisplayDate(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  const str = d.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day:     "numeric",
+    month:   "long",
+    year:    "numeric",
+  });
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 /* ─── Main Page ─── */
 export default function AgendaPage() {
   const [selectedAppt,   setSelectedAppt]   = useState<Appointment | null>(null);
   const [newApptDentist, setNewApptDentist] = useState<DentistKey | null>(null);
   const [newApptTime,    setNewApptTime]    = useState("09:00");
   const [view,           setView]           = useState<"dia" | "semana">("dia");
+  const [activeDate,     setActiveDate]     = useState(() => new Date().toISOString().split("T")[0]);
   const TODAY = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   const timelineRef  = useRef<HTMLDivElement>(null);
@@ -989,12 +1008,12 @@ export default function AgendaPage() {
   });
 
   const { data: dbAgendamentos = [], isLoading: loadingAppts } = useQuery({
-    queryKey: ["agendamentos", TODAY],
-    queryFn:  () => fetchAgendamentosByDate(TODAY),
+    queryKey: ["agendamentos", activeDate],
+    queryFn:  () => fetchAgendamentosByDate(activeDate),
   });
 
   /* P4: Week-view — fetch Mon–Fri with useQueries (all 5 days in parallel) */
-  const weekDates = useMemo(() => getWeekDates(TODAY), [TODAY]);
+  const weekDates = useMemo(() => getWeekDates(activeDate), [activeDate]);
   const weekResults = useQueries({
     queries: weekDates.map(date => ({
       queryKey: ["agendamentos", date],
@@ -1069,25 +1088,38 @@ export default function AgendaPage() {
             </div>
 
             <div className="flex items-center gap-1.5">
-              <button className="w-7 h-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.05] transition-all">
+              <button
+                onClick={() => setActiveDate(prev => addDays(prev, -1))}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.05] transition-all"
+              >
                 <ChevronLeft size={16} />
               </button>
 
               <div className="px-1">
                 <h1 className="text-white font-bold text-base leading-tight">
-                  Terça, 27 de maio de 2026
+                  {formatDisplayDate(activeDate)}
                 </h1>
                 <p className="text-white/40 text-xs">
                   {totalReal} consultas · {totalConfirmed} confirmadas
                 </p>
               </div>
 
-              <button className="w-7 h-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.05] transition-all">
+              <button
+                onClick={() => setActiveDate(prev => addDays(prev, 1))}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.05] transition-all"
+              >
                 <ChevronRight size={16} />
               </button>
             </div>
 
-            <button className="px-3 py-1 rounded-lg text-xs font-semibold border border-white/[0.10] text-white/55 hover:text-white hover:border-white/20 transition-all">
+            <button
+              onClick={() => setActiveDate(TODAY)}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                activeDate === TODAY
+                  ? "border-[#1D9E75]/40 text-[#1D9E75] bg-[#1D9E75]/08"
+                  : "border-white/[0.10] text-white/55 hover:text-white hover:border-white/20"
+              }`}
+            >
               Hoje
             </button>
           </div>
@@ -1320,7 +1352,7 @@ export default function AgendaPage() {
       {selectedAppt && (
         <AppointmentDetailModal
           appt={selectedAppt}
-          activeDate={TODAY}
+          activeDate={activeDate}
           onClose={() => setSelectedAppt(null)}
         />
       )}
@@ -1328,7 +1360,7 @@ export default function AgendaPage() {
         <NewAppointmentModal
           dentist={newApptDentist}
           time={newApptTime}
-          activeDate={TODAY}
+          activeDate={activeDate}
           onClose={() => setNewApptDentist(null)}
           dbDentistas={dbDentistas}
         />

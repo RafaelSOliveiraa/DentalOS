@@ -48,25 +48,6 @@ interface TreatmentHistoryEntry {
   value: number;
 }
 
-/* ─── Data ─── */
-const PATIENTS: Patient[] = [
-  { id: 1,  name: "João Silva",      age: 34, phone: "(11) 98765-4321", email: "joao.silva@email.com",      status: "INADIMPLENTE", treatment: "Implante",    dentist: "Dra. Ana Paula", lastVisit: "10/04/2026",                      balance: 1800, cpf: "123.456.789-01", birthdate: "12/03/1992", referral: "Indicação" },
-  { id: 2,  name: "Maria Lopes",     age: 28, phone: "(11) 91234-5678", email: "maria.lopes@email.com",     status: "ATIVO",        treatment: "Ortodontia",  dentist: "Dr. Bruno",     lastVisit: "15/04/2026", nextAppt: "02/06/2026", balance: 980,  cpf: "234.567.890-12", birthdate: "05/07/1998", referral: "Instagram"  },
-  { id: 3,  name: "Carlos Mota",     age: 45, phone: "(21) 99876-5432", email: "carlos.mota@email.com",     status: "ATIVO",        treatment: "Clareamento", dentist: "Dra. Ana Paula", lastVisit: "20/04/2026", nextAppt: "05/06/2026", balance: 0,    cpf: "345.678.901-23", birthdate: "22/11/1981", referral: "Google"    },
-  { id: 4,  name: "Ana Ferreira",    age: 31, phone: "(11) 97654-3210", email: "ana.ferreira@email.com",    status: "ATIVO",        treatment: "Consulta",    dentist: "Dra. Carla",    lastVisit: "18/04/2026", nextAppt: "28/05/2026", balance: 250,  cpf: "456.789.012-34", birthdate: "30/09/1995", referral: "Indicação" },
-  { id: 5,  name: "Pedro Santos",    age: 52, phone: "(31) 98888-7777", email: "pedro.santos@email.com",    status: "INADIMPLENTE", treatment: "Implante",    dentist: "Dra. Ana Paula", lastVisit: "05/03/2026",                      balance: 2400, cpf: "567.890.123-45", birthdate: "14/06/1974", referral: "Google"    },
-  { id: 6,  name: "Lucia Rocha",     age: 27, phone: "(11) 96543-2109", email: "lucia.rocha@email.com",     status: "INADIMPLENTE", treatment: "Ortodontia",  dentist: "Dr. Bruno",     lastVisit: "22/04/2026", nextAppt: "01/06/2026", balance: 600,  cpf: "678.901.234-56", birthdate: "18/02/1999", referral: "Instagram"  },
-  { id: 7,  name: "Roberto Lima",    age: 38, phone: "(21) 95432-1098", email: "roberto.lima@email.com",    status: "ATIVO",        treatment: "Restauração", dentist: "Dra. Carla",    lastVisit: "25/04/2026", nextAppt: "10/06/2026", balance: 0,    cpf: "789.012.345-67", birthdate: "07/08/1988", referral: "Indicação" },
-  { id: 8,  name: "Fernanda Costa",  age: 23, phone: "(11) 94321-0987", email: "fernanda.costa@email.com",  status: "NOVO",         treatment: "Clareamento", dentist: "Dra. Ana Paula", lastVisit: "28/04/2026", nextAppt: "15/06/2026", balance: 0,    cpf: "890.123.456-78", birthdate: "25/01/2003", referral: "Instagram"  },
-  { id: 9,  name: "Marcos Souza",    age: 41, phone: "(31) 93210-9876", email: "marcos.souza@email.com",    status: "ATIVO",        treatment: "Implante",    dentist: "Dra. Ana Paula", lastVisit: "26/04/2026", nextAppt: "26/05/2026", balance: 0,    cpf: "901.234.567-89", birthdate: "03/12/1985", referral: "Google"    },
-  { id: 10, name: "Patricia Dias",   age: 35, phone: "(11) 92109-8765", email: "patricia.dias@email.com",   status: "ATIVO",        treatment: "Ortodontia",  dentist: "Dr. Bruno",     lastVisit: "27/04/2026", nextAppt: "06/06/2026", balance: 0,    cpf: "012.345.678-90", birthdate: "11/05/1991", referral: "Indicação" },
-  { id: 11, name: "Bruno Alves",     age: 29, phone: "(21) 91098-7654", email: "bruno.alves@email.com",     status: "INATIVO",      treatment: "Consulta",    dentist: "Dra. Carla",    lastVisit: "10/01/2026",                      balance: 0,    cpf: "111.222.333-44", birthdate: "29/04/1997", referral: "Outros"    },
-  { id: 12, name: "Camila Torres",   age: 33, phone: "(11) 90987-6543", email: "camila.torres@email.com",   status: "NOVO",         treatment: "Restauração", dentist: "Dra. Ana Paula", lastVisit: "29/04/2026", nextAppt: "08/06/2026", balance: 0,    cpf: "222.333.444-55", birthdate: "16/08/1993", referral: "Google"    },
-  { id: 13, name: "Diego Martins",   age: 47, phone: "(31) 99876-0000", email: "diego.martins@email.com",   status: "ATIVO",        treatment: "Implante",    dentist: "Dra. Ana Paula", lastVisit: "24/04/2026", nextAppt: "29/05/2026", balance: 0,    cpf: "333.444.555-66", birthdate: "09/02/1979", referral: "Indicação" },
-  { id: 14, name: "Juliana Neves",   age: 26, phone: "(11) 98765-1111", email: "juliana.neves@email.com",   status: "NOVO",         treatment: "Ortodontia",  dentist: "Dr. Bruno",     lastVisit: "30/04/2026", nextAppt: "03/06/2026", balance: 0,    cpf: "444.555.666-77", birthdate: "20/11/2000", referral: "Instagram"  },
-  { id: 15, name: "Ricardo Faria",   age: 55, phone: "(21) 97654-2222", email: "ricardo.faria@email.com",   status: "INADIMPLENTE", treatment: "Clareamento", dentist: "Dra. Carla",    lastVisit: "08/03/2026",                      balance: 0,    cpf: "555.666.777-88", birthdate: "14/07/1971", referral: "Google"    },
-];
-
 const DENTISTS = ["Todos", "Dra. Ana Paula", "Dr. Bruno", "Dra. Carla"];
 const TREATMENTS = ["Todos", "Implante", "Ortodontia", "Clareamento", "Restauração", "Consulta"];
 const PAGE_SIZE = 10;

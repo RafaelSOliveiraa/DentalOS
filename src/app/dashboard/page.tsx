@@ -75,11 +75,8 @@ const revenueData = [
 ];
 
 const alertItems = [
-  { id: 1, level: "red" as const,    Icon: CreditCard, text: "6 parcelas vencidas",             sub: "R$ 4.800 em atraso" },
-  { id: 2, level: "red" as const,    Icon: Package,    text: "Luva P — estoque crítico",         sub: "2 cx, mínimo 5" },
-  { id: 3, level: "yellow" as const, Icon: Clock,      text: "Anestésico vence em 18 dias",      sub: "Lote 2024-B" },
-  { id: 4, level: "yellow" as const, Icon: Package,    text: "Fio ortodôntico — estoque baixo",  sub: "1 rolo disponível" },
-  { id: 5, level: "blue" as const,   Icon: Target,     text: "Meta a R$ 2.200 de ser atingida",  sub: "4 dias úteis restantes" },
+  { id: 1, level: "red" as const,  Icon: CreditCard, text: "6 parcelas vencidas",            sub: "R$ 4.800 em atraso"       },
+  { id: 2, level: "blue" as const, Icon: Target,     text: "Meta a R$ 2.200 de ser atingida", sub: "4 dias úteis restantes"   },
 ];
 
 const procedureItems = [
@@ -444,7 +441,7 @@ function AlertsPanel() {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-semibold text-sm">Requer atenção agora</h3>
         <span className="bg-[#E24B4A]/10 text-[#E24B4A] text-xs font-bold px-2 py-0.5 rounded-full">
-          2 críticos
+          1 crítico
         </span>
       </div>
 

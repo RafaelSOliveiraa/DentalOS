@@ -114,13 +114,14 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 /* ─── Revenue Chart ─── */
-function RevenueChart() {
+function RevenueChart({ data, period }: { data: typeof MONTHLY_CHART; period: Period }) {
+  const periodLabel = period === "Este mês" ? "Mês atual" : period === "Últimos 3 meses" ? "Últimos 3 meses" : "Últimos 6 meses";
   return (
     <div className="rounded-2xl border border-white/[0.06] p-5" style={{ background: "#131726" }}>
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-white font-semibold text-sm">Faturamento Mensal</h3>
-          <p className="text-xs text-white/35 mt-0.5">Últimos 6 meses</p>
+          <p className="text-xs text-white/35 mt-0.5">{periodLabel}</p>
         </div>
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: "#1D9E75" }} />Faturamento</span>
@@ -128,7 +129,7 @@ function RevenueChart() {
         </div>
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <ComposedChart data={MONTHLY_CHART} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="mes" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 11 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
@@ -239,12 +240,29 @@ function StatusCell({ status, pct }: { status: KpiStatus; pct: string }) {
 export default function RelatoriosPage() {
   const [period, setPeriod] = useState<Period>("Este mês");
 
-  const totFat    = COMPARATIVE.reduce((s, r) => s + r.faturamento, 0);
-  const totLucro  = COMPARATIVE.reduce((s, r) => s + r.lucro, 0);
-  const totCons   = COMPARATIVE.reduce((s, r) => s + r.consultas, 0);
-  const avgMargem = (COMPARATIVE.reduce((s, r) => s + parseFloat(r.margem), 0) / COMPARATIVE.length).toFixed(1);
-  const avgTicket = Math.round(COMPARATIVE.reduce((s, r) => s + r.ticket, 0) / COMPARATIVE.length);
-  const avgFaltas = (COMPARATIVE.reduce((s, r) => s + parseFloat(r.faltas), 0) / COMPARATIVE.length).toFixed(0);
+  /* Slice data by selected period */
+  const periodSlice: ComparativoRow[] =
+    period === "Este mês"         ? COMPARATIVE.slice(-1)
+    : period === "Últimos 3 meses" ? COMPARATIVE.slice(-3)
+    : COMPARATIVE;
+
+  const chartSlice =
+    period === "Este mês"         ? MONTHLY_CHART.slice(-1)
+    : period === "Últimos 3 meses" ? MONTHLY_CHART.slice(-3)
+    : MONTHLY_CHART;
+
+  /* Computed aggregates from slice */
+  const totFat    = periodSlice.reduce((s, r) => s + r.faturamento, 0);
+  const totLucro  = periodSlice.reduce((s, r) => s + r.lucro, 0);
+  const totCons   = periodSlice.reduce((s, r) => s + r.consultas, 0);
+  const avgMargem = (periodSlice.reduce((s, r) => s + parseFloat(r.margem), 0) / periodSlice.length).toFixed(1);
+  const avgTicket = Math.round(periodSlice.reduce((s, r) => s + r.ticket, 0) / periodSlice.length);
+  const avgFaltas = (periodSlice.reduce((s, r) => s + parseFloat(r.faltas), 0) / periodSlice.length).toFixed(0);
+
+  const periodSubLabel =
+    period === "Este mês"         ? "maio 2026"
+    : period === "Últimos 3 meses" ? "mar–mai 2026"
+    : "dez 2025–mai 2026";
 
   return (
     <div className="min-h-screen flex" style={{ background: "#0C0F1A" }}>
@@ -281,15 +299,15 @@ export default function RelatoriosPage() {
 
           {/* Line 1 — Summary KPIs */}
           <div className="grid grid-cols-4 gap-4">
-            <SummaryCard icon={DollarSign}  label="Faturamento total"  value="R$ 52.800"  sub="maio 2026"         accent="#1D9E75" />
-            <SummaryCard icon={TrendingUp}  label="Lucro líquido"      value="R$ 21.340"  sub="margem 40,4%"      accent="#5B8DEF" />
-            <SummaryCard icon={Calendar}    label="Total de consultas"  value="148"         sub="+12% vs. abril"    accent="#EF9F27" />
-            <SummaryCard icon={Users}       label="Novos pacientes"     value="18"          sub="+3 vs. meta"       accent="#9B6DFF" />
+            <SummaryCard icon={DollarSign} label="Faturamento total"  value={fmtBRL(totFat)}   sub={periodSubLabel}              accent="#1D9E75" />
+            <SummaryCard icon={TrendingUp} label="Lucro líquido"      value={fmtBRL(totLucro)} sub={`margem ${avgMargem}%`}      accent="#5B8DEF" />
+            <SummaryCard icon={Calendar}   label="Total de consultas"  value={String(totCons)}   sub={`ticket médio R$ ${avgTicket}`} accent="#EF9F27" />
+            <SummaryCard icon={Users}      label="Taxa de faltas"      value={`${avgFaltas}%`}   sub={`meta: abaixo de 7%`}       accent="#9B6DFF" />
           </div>
 
           {/* Line 2 — Charts */}
           <div className="grid grid-cols-2 gap-6">
-            <RevenueChart />
+            <RevenueChart data={chartSlice} period={period} />
             <ProcedimentosPie />
           </div>
 
@@ -356,9 +374,15 @@ export default function RelatoriosPage() {
 
           {/* Line 5 — Comparative table */}
           <div className="rounded-2xl border border-white/[0.06] overflow-hidden" style={{ background: "#131726" }}>
-            <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-2">
-              <FileBarChart size={15} className="text-white/50" />
-              <h3 className="text-white font-semibold text-sm">Comparativo Mensal — Últimos 6 meses</h3>
+            <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileBarChart size={15} className="text-white/50" />
+                <h3 className="text-white font-semibold text-sm">
+                  Comparativo Mensal —{" "}
+                  {period === "Este mês" ? "Mês atual" : period === "Últimos 3 meses" ? "Últimos 3 meses" : "Últimos 6 meses"}
+                </h3>
+              </div>
+              <span className="text-xs text-white/30">{periodSubLabel}</span>
             </div>
             <table className="w-full">
               <thead className="border-b border-white/[0.06]" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -369,7 +393,7 @@ export default function RelatoriosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {COMPARATIVE.map((row, i) => (
+                {periodSlice.map((row, i) => (
                   <tr key={row.mes}
                     style={{ background: row.highlight ? "rgba(29,158,117,0.05)" : i % 2 === 1 ? "rgba(255,255,255,0.015)" : "transparent" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = row.highlight ? "rgba(29,158,117,0.08)" : "rgba(255,255,255,0.03)"; }}
