@@ -1,23 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   ChevronLeft, User, Phone, Mail, MapPin,
   Stethoscope, Heart, Cigarette, Baby, Activity,
   ClipboardList, FileText, Plus, X, Save,
   Banknote, CreditCard, AlertCircle, CheckCircle2,
-  Calendar, Pill, Clock, ArrowRight, HeartPulse,
+  Calendar, Pill, Clock, ArrowRight, HeartPulse, LoaderCircle,
 } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
+import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  fetchAnamnese,
+  upsertAnamnese,
+  fetchConsultas,
+  createConsulta,
+  fetchPacienteById,
+  fetchDentistas,
+} from "@/lib/queries";
+import type { AnamneseRow, ConsultaRow } from "@/lib/supabase";
 
 /* ─── Types ─── */
 type TabType = "Dados Pessoais" | "Anamnese" | "Histórico Clínico" | "Financeiro";
 type ParcStatus = "pago" | "atraso" | "pendente";
 
 interface ConsultaEntry {
-  id: number;
+  id: string | number;
   date: string;
   dentist: string;
   queixa: string;
@@ -184,10 +196,18 @@ function YesNoToggle({
 }
 
 /* ─── Modal Registrar Consulta ─── */
-function RegistrarConsultaModal({ onClose }: { onClose: () => void }) {
+function RegistrarConsultaModal({
+  pacienteId,
+  onClose,
+}: {
+  pacienteId: string;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { data: dentistas = [] } = useQuery({ queryKey: ["dentistas"], queryFn: fetchDentistas });
   const [form, setForm] = useState({
-    date: "2026-05-27",
-    dentist: "Dra. Ana Paula",
+    date: new Date().toISOString().split("T")[0],
+    dentistId: "",
     queixa: "",
     exame: "",
     diagnostico: "",
@@ -195,6 +215,31 @@ function RegistrarConsultaModal({ onClose }: { onClose: () => void }) {
     prescricao: "",
     proximoPasso: "",
     observacoes: "",
+    procedimento: "Consulta",
+  });
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      createConsulta({
+        paciente_id:          pacienteId,
+        dentista_id:          form.dentistId || null,
+        data:                 form.date,
+        queixa:               form.queixa || null,
+        exame_clinico:        form.exame || null,
+        diagnostico:          form.diagnostico || null,
+        tratamento_realizado: form.tratamento || null,
+        prescricao:           form.prescricao || null,
+        proximo_passo:        form.proximoPasso || null,
+        observacoes:          form.observacoes || null,
+        procedimento:         form.procedimento || null,
+        proc_color:           "#5B8DEF",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["consultas", pacienteId] });
+      toast.success("Consulta registrada com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro ao registrar: ${e.message}`),
   });
 
   function field(key: keyof typeof form) {
@@ -246,10 +291,15 @@ function RegistrarConsultaModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Dentista</label>
-              <select {...field("dentist")} className={inputCls}>
-                <option>Dra. Ana Paula</option>
-                <option>Dr. Bruno</option>
-                <option>Dra. Carla</option>
+              <select
+                value={form.dentistId}
+                onChange={e => setForm(f => ({ ...f, dentistId: e.target.value }))}
+                className={inputCls}
+              >
+                <option value="">Selecione o dentista</option>
+                {dentistas.map(d => (
+                  <option key={d.id} value={d.id}>{d.nome}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -284,11 +334,14 @@ function RegistrarConsultaModal({ onClose }: { onClose: () => void }) {
             Cancelar
           </button>
           <button
-            onClick={onClose}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
             style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.22)" }}
           >
-            <Save size={14} />
+            {saveMut.isPending
+              ? <LoaderCircle size={14} className="animate-spin" />
+              : <Save size={14} />}
             Salvar consulta
           </button>
         </div>
@@ -451,17 +504,72 @@ function DadosPessoaisTab() {
 }
 
 /* ─── Tab: Anamnese ─── */
-function AnamneseTab() {
-  const [form, setForm] = useState(ANAMNESE_DATA);
-  const [saved, setSaved] = useState(false);
+function AnamneseTab({ pacienteId }: { pacienteId: string }) {
+  const qc = useQueryClient();
+
+  const { data: dbAnamnese, isLoading } = useQuery({
+    queryKey: ["anamnese", pacienteId],
+    queryFn:  () => fetchAnamnese(pacienteId),
+    enabled:  !!pacienteId,
+  });
+
+  const [form, setForm] = useState({
+    pressao:     ANAMNESE_DATA.pressao,
+    diabetico:   ANAMNESE_DATA.diabetico,
+    cardiopatia: ANAMNESE_DATA.cardiopatia,
+    hipertensao: ANAMNESE_DATA.hipertensao,
+    fumante:     ANAMNESE_DATA.fumante,
+    gravida:     ANAMNESE_DATA.gravida,
+    alergias:    ANAMNESE_DATA.alergias,
+    medicamentos: ANAMNESE_DATA.medicamentos,
+    cirurgias:   ANAMNESE_DATA.cirurgias,
+    observacoes: ANAMNESE_DATA.observacoes,
+    lastUpdated: ANAMNESE_DATA.lastUpdated,
+  });
+
+  // Hydrate form from DB when data arrives
+  useEffect(() => {
+    if (dbAnamnese) {
+      setForm({
+        pressao:     dbAnamnese.pressao_arterial ?? ANAMNESE_DATA.pressao,
+        diabetico:   dbAnamnese.diabetico,
+        cardiopatia: dbAnamnese.cardiopatia,
+        hipertensao: dbAnamnese.hipertensao,
+        fumante:     dbAnamnese.fumante,
+        gravida:     dbAnamnese.gravida,
+        alergias:    dbAnamnese.alergias    ?? "",
+        medicamentos: dbAnamnese.medicamentos ?? "",
+        cirurgias:   dbAnamnese.cirurgias   ?? "",
+        observacoes: dbAnamnese.observacoes ?? "",
+        lastUpdated: new Date(dbAnamnese.updated_at).toLocaleDateString("pt-BR"),
+      });
+    }
+  }, [dbAnamnese]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      upsertAnamnese({
+        paciente_id:      pacienteId,
+        pressao_arterial: form.pressao    || null,
+        diabetico:        form.diabetico,
+        cardiopatia:      form.cardiopatia,
+        hipertensao:      form.hipertensao,
+        fumante:          form.fumante,
+        gravida:          form.gravida,
+        alergias:         form.alergias    || null,
+        medicamentos:     form.medicamentos || null,
+        cirurgias:        form.cirurgias   || null,
+        observacoes:      form.observacoes || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["anamnese", pacienteId] });
+      toast.success("Anamnese salva com sucesso!");
+    },
+    onError: (e: Error) => toast.error(`Erro ao salvar: ${e.message}`),
+  });
 
   const textareaCls =
     "w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 bg-[#0C0F1A] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/38 transition-colors resize-none";
-
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  }
 
   const healthItems: {
     key: "diabetico" | "cardiopatia" | "hipertensao" | "fumante";
@@ -474,6 +582,16 @@ function AnamneseTab() {
     { key: "hipertensao",  label: "Hipertensão",           Icon: HeartPulse, iconColor: "#DC2626" },
     { key: "fumante",      label: "Fumante",               Icon: Cigarette,  iconColor: "#9B6DFF" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        {[1, 2, 3].map(i => (
+          <Skeleton key={i} className="h-48 rounded-2xl" style={{ background: "#131726" }} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -612,33 +730,64 @@ function AnamneseTab() {
       {/* Footer */}
       <div className="flex items-center gap-4">
         <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
+          onClick={() => saveMut.mutate()}
+          disabled={saveMut.isPending}
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
           style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.20)" }}
         >
-          <Save size={14} />
+          {saveMut.isPending
+            ? <LoaderCircle size={14} className="animate-spin" />
+            : <Save size={14} />}
           Salvar anamnese
         </button>
-        {saved ? (
-          <span className="text-sm text-[#1D9E75] flex items-center gap-1.5">
-            <CheckCircle2 size={14} />
-            Anamnese salva!
-          </span>
-        ) : (
-          <p className="text-xs text-white/28">
-            <Clock size={10} className="inline mr-1" />
-            Última atualização: {ANAMNESE_DATA.lastUpdated}
-          </p>
-        )}
+        <p className="text-xs text-white/28">
+          <Clock size={10} className="inline mr-1" />
+          Última atualização: {form.lastUpdated}
+        </p>
       </div>
     </div>
   );
 }
 
 /* ─── Tab: Histórico Clínico ─── */
-function HistoricoTab() {
-  const [entries, setEntries] = useState<ConsultaEntry[]>(HISTORICO);
+function HistoricoTab({ pacienteId }: { pacienteId: string }) {
   const [showModal, setShowModal] = useState(false);
+
+  const { data: dbConsultas = [], isLoading } = useQuery({
+    queryKey: ["consultas", pacienteId],
+    queryFn:  () => fetchConsultas(pacienteId),
+    enabled:  !!pacienteId,
+  });
+
+  // Map DB rows → ConsultaEntry; fall back to static demo if DB is empty
+  const entries: ConsultaEntry[] = dbConsultas.length > 0
+    ? dbConsultas.map(c => ({
+        id:           c.id,
+        date:         c.data
+          ? new Date(c.data + "T12:00:00").toLocaleDateString("pt-BR")
+          : "—",
+        dentist:      c.dentistas?.nome ?? "—",
+        queixa:       c.queixa              ?? "",
+        exame:        c.exame_clinico        ?? "",
+        diagnostico:  c.diagnostico          ?? "",
+        tratamento:   c.tratamento_realizado ?? "",
+        prescricao:   c.prescricao           ?? "",
+        proximoPasso: c.proximo_passo        ?? "",
+        observacoes:  c.observacoes          ?? "",
+        procedure:    c.procedimento         ?? "Consulta",
+        procColor:    c.proc_color           ?? "#5B8DEF",
+      }))
+    : HISTORICO;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map(i => (
+          <Skeleton key={i} className="h-64 rounded-2xl" style={{ background: "#131726" }} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -765,7 +914,7 @@ function HistoricoTab() {
       </div>
 
       {showModal && (
-        <RegistrarConsultaModal onClose={() => setShowModal(false)} />
+        <RegistrarConsultaModal pacienteId={pacienteId} onClose={() => setShowModal(false)} />
       )}
     </div>
   );
@@ -905,7 +1054,48 @@ export default function ProntuarioPage() {
   const id       = params.id as string;
   const [activeTab, setActiveTab] = useState<TabType>("Dados Pessoais");
 
-  const patient  = PATIENT_DATA; // demo: always João Silva
+  const { data: dbPaciente } = useQuery({
+    queryKey: ["paciente", id],
+    queryFn:  () => fetchPacienteById(id),
+    enabled:  !!id,
+  });
+
+  // Compute display patient — prefer DB data, fall back to demo PATIENT_DATA
+  const patient = dbPaciente
+    ? {
+        id:        dbPaciente.id,
+        name:      dbPaciente.nome,
+        cpf:       dbPaciente.cpf      ?? PATIENT_DATA.cpf,
+        birthdate: dbPaciente.data_nascimento ?? PATIENT_DATA.birthdate,
+        age: dbPaciente.data_nascimento
+          ? new Date().getFullYear() -
+            new Date(dbPaciente.data_nascimento).getFullYear()
+          : PATIENT_DATA.age,
+        phone:     dbPaciente.telefone  ?? PATIENT_DATA.phone,
+        email:     dbPaciente.email     ?? PATIENT_DATA.email,
+        sexo:      dbPaciente.sexo,
+        status:    dbPaciente.status    as typeof PATIENT_DATA.status,
+        treatment: dbPaciente.tratamento ?? PATIENT_DATA.treatment,
+        dentist:   PATIENT_DATA.dentist,
+        lastVisit: PATIENT_DATA.lastVisit,
+        address: {
+          rua:    dbPaciente.endereco_rua     ?? PATIENT_DATA.address.rua,
+          bairro: dbPaciente.endereco_bairro  ?? PATIENT_DATA.address.bairro,
+          cidade: dbPaciente.endereco_cidade  ?? PATIENT_DATA.address.cidade,
+          estado: dbPaciente.endereco_estado  ?? PATIENT_DATA.address.estado,
+          cep:    dbPaciente.endereco_cep     ?? PATIENT_DATA.address.cep,
+        },
+        referral: dbPaciente.como_conheceu ?? PATIENT_DATA.referral,
+      }
+    : PATIENT_DATA;
+
+  // Initials from name
+  const initials = patient.name
+    .split(" ")
+    .slice(0, 2)
+    .map(w => w[0])
+    .join("")
+    .toUpperCase();
 
   const STATUS_COLOR: Record<string, string> = {
     INADIMPLENTE: "#DC2626",
@@ -943,7 +1133,7 @@ export default function ProntuarioPage() {
               className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
               style={{ background: "#1D9E75" }}
             >
-              JS
+              {initials}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -1014,8 +1204,8 @@ export default function ProntuarioPage() {
         {/* ── Tab content ── */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {activeTab === "Dados Pessoais"   && <DadosPessoaisTab />}
-          {activeTab === "Anamnese"          && <AnamneseTab />}
-          {activeTab === "Histórico Clínico" && <HistoricoTab />}
+          {activeTab === "Anamnese"          && <AnamneseTab pacienteId={id} />}
+          {activeTab === "Histórico Clínico" && <HistoricoTab pacienteId={id} />}
           {activeTab === "Financeiro"        && <FinanceiroTab />}
         </div>
 

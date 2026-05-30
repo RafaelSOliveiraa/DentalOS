@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   LayoutDashboard, CalendarDays, Users, DollarSign, Package,
   Settings, BarChart2, BrainCircuit, Search, Plus, X, UserCheck, UserX, Stethoscope,
   Phone, Mail, Calendar, ChevronUp, ChevronDown, MoreHorizontal,
   CalendarPlus, FileText, Trash2, Download, RotateCcw, ChevronLeft,
   ChevronRight, Eye, AlertCircle, Sparkles, TrendingUp, CreditCard,
+  LoaderCircle,
 } from "lucide-react";
+import { Skeleton, SkeletonRow } from "@/components/ui/Skeleton";
+import { fetchPacientes, createPaciente } from "@/lib/queries";
 
 /* ─── Types ─── */
 type PatientStatus = "ATIVO" | "INADIMPLENTE" | "NOVO" | "INATIVO";
@@ -409,7 +414,9 @@ function KpiCard({ icon: Icon, label, value, sub, accent }: { icon: React.Elemen
 
 /* ─── Main Page ─── */
 export default function PacientesPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [dbSearch, setDbSearch] = useState(""); // debounced for Supabase
   const [statusFilter, setStatusFilter] = useState<PatientStatus | "Todos">("Todos");
   const [dentistFilter, setDentistFilter] = useState("Todos");
   const [treatmentFilter, setTreatmentFilter] = useState("Todos");
@@ -418,6 +425,41 @@ export default function PacientesPage() {
   const [page, setPage] = useState(1);
   const [showNewModal, setShowNewModal] = useState(false);
   const [detailPatient, setDetailPatient] = useState<Patient | null>(null);
+
+  /* Debounce search → Supabase */
+  useEffect(() => {
+    const t = setTimeout(() => setDbSearch(search), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  /* Query: pacientes from Supabase */
+  const { data: dbPacientes, isLoading: loadingPacientes } = useQuery({
+    queryKey: ["pacientes", dbSearch],
+    queryFn:  () => fetchPacientes(dbSearch),
+    staleTime: 20_000,
+  });
+
+  /* Map Supabase rows → local Patient shape (or fall back to static PATIENTS) */
+  const allPatients: Patient[] = useMemo(() => {
+    if (!dbPacientes || dbPacientes.length === 0) return PATIENTS;
+    return dbPacientes.map(p => ({
+      id:         Number(p.id.replace(/-/g, "").slice(0, 8) || 0) || Math.random(),
+      name:       p.nome,
+      age:        p.data_nascimento
+        ? Math.floor((Date.now() - new Date(p.data_nascimento).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+        : 0,
+      phone:      p.telefone ?? "—",
+      email:      p.email ?? "—",
+      status:     (p.status ?? "ATIVO") as PatientStatus,
+      treatment:  p.tratamento ?? "—",
+      dentist:    "—",
+      lastVisit:  "—",
+      balance:    Number(p.balance ?? 0),
+      cpf:        p.cpf ?? "—",
+      birthdate:  p.data_nascimento ?? "—",
+      referral:   (p.como_conheceu ?? "Outros") as ReferralOption,
+    }));
+  }, [dbPacientes]);
 
   function handleSort(col: string) {
     if (sortCol === col) {
@@ -430,11 +472,8 @@ export default function PacientesPage() {
   }
 
   const filtered = useMemo(() => {
-    let list = [...PATIENTS];
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(p => p.name.toLowerCase().includes(q) || p.phone.includes(q) || p.treatment.toLowerCase().includes(q));
-    }
+    let list = [...allPatients];
+    // Local filters (status/dentist/treatment) still applied client-side
     if (statusFilter !== "Todos") list = list.filter(p => p.status === statusFilter);
     if (dentistFilter !== "Todos") list = list.filter(p => p.dentist === dentistFilter);
     if (treatmentFilter !== "Todos") list = list.filter(p => p.treatment === treatmentFilter);
@@ -452,7 +491,7 @@ export default function PacientesPage() {
       });
     }
     return list;
-  }, [search, statusFilter, dentistFilter, treatmentFilter, sortCol, sortDir]);
+  }, [allPatients, statusFilter, dentistFilter, treatmentFilter, sortCol, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -502,7 +541,10 @@ export default function PacientesPage() {
             <div className="flex items-center gap-3 flex-wrap">
               {/* Search */}
               <div className="relative flex-1 min-w-48">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                {loadingPacientes
+                  ? <LoaderCircle size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1D9E75] animate-spin" />
+                  : <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                }
                 <input
                   value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                   className="w-full pl-8 pr-3 py-2 rounded-xl text-sm text-white placeholder-white/25 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40 transition-colors"
@@ -555,7 +597,9 @@ export default function PacientesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
-                {pageItems.length === 0 ? (
+                {loadingPacientes ? (
+                  Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} cols={9} />)
+                ) : pageItems.length === 0 ? (
                   <tr><td colSpan={9} className="px-4 py-10 text-center text-white/30 text-sm">Nenhum paciente encontrado.</td></tr>
                 ) : (
                   pageItems.map(p => {

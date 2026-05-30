@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   ChevronLeft, ChevronRight, Plus, X, Clock, Phone, User,
   UserCheck, CalendarCheck, CalendarX, Calendar,
-  AlertCircle, CheckCircle2,
+  AlertCircle, CheckCircle2, LoaderCircle,
 } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
+import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  fetchDentistas,
+  fetchAgendamentosByDate,
+  createAgendamento,
+  fetchPacientes,
+} from "@/lib/queries";
+import type { DentistaRow, AgendamentoRow } from "@/lib/supabase";
 
 /* ─── Types ─── */
 type ProcedureType =
@@ -114,7 +124,11 @@ function useCurrentTimeY() {
 
 /* ─── Free slot builder ─── */
 function buildFreeSlots(dentistKey: DentistKey): { start: string; end: string }[] {
-  const appts = APPOINTMENTS
+  return buildFreeSlotsFromAppts(dentistKey, APPOINTMENTS);
+}
+
+function buildFreeSlotsFromAppts(dentistKey: DentistKey, apptList: Appointment[]): { start: string; end: string }[] {
+  const appts = apptList
     .filter(a => a.dentist === dentistKey)
     .sort((a, b) => a.start.localeCompare(b.start));
 
@@ -132,8 +146,8 @@ function buildFreeSlots(dentistKey: DentistKey): { start: string; end: string }[
 }
 
 /* ─── Dentist counters ─── */
-function getDentistCounters(key: DentistKey) {
-  const real = APPOINTMENTS.filter(a => a.dentist === key && !a.isBreak);
+function getDentistCounters(key: DentistKey, apptList: Appointment[] = APPOINTMENTS) {
+  const real = apptList.filter(a => a.dentist === key && !a.isBreak);
   return {
     total:       real.length,
     confirmed:   real.filter(a =>  a.confirmed).length,
@@ -243,27 +257,77 @@ function FreeSlot({
   );
 }
 
-/* ─── New Appointment Modal ─── */
+/* ─── New Appointment Modal (with Supabase save + patient search) ─── */
 function NewAppointmentModal({
   dentist,
   time,
   onClose,
+  dbDentistas,
 }: {
   dentist: DentistKey;
   time: string;
   onClose: () => void;
+  dbDentistas: DentistaRow[];
 }) {
+  const qc = useQueryClient();
   const [selDentist, setSelDentist] = useState(dentist);
+  const [selDate,    setSelDate]    = useState("2026-05-27");
   const [selTime,    setSelTime]    = useState(time);
   const [duration,   setDuration]   = useState("60");
-  const [patient,    setPatient]    = useState("");
+  const [patSearch,  setPatSearch]  = useState("");
+  const [selPatient, setSelPatient] = useState<{ id: string; nome: string } | null>(null);
   const [procedure,  setProcedure]  = useState<ProcedureType>("Consulta");
   const [status,     setStatus]     = useState<"confirmed" | "unconfirmed">("confirmed");
   const [notes,      setNotes]      = useState("");
 
+  /* Patient search from Supabase */
+  const { data: patients = [], isFetching: searchingPat } = useQuery({
+    queryKey: ["pacientes-search", patSearch],
+    queryFn:  () => fetchPacientes(patSearch),
+    enabled:  patSearch.trim().length >= 2,
+  });
+
+  /* Save mutation */
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const dentistRecord = dbDentistas.find(d => {
+        const key = d.nome.toLowerCase().includes("ana") ? "ana"
+          : d.nome.toLowerCase().includes("bruno") ? "bruno"
+          : "carla";
+        return key === selDentist;
+      }) ?? dbDentistas[0];
+
+      const [h, m] = selTime.split(":").map(Number);
+      const endMin  = h * 60 + m + Number(duration);
+      const endH    = String(Math.floor(endMin / 60)).padStart(2, "0");
+      const endM    = String(endMin % 60).padStart(2, "0");
+
+      return createAgendamento({
+        paciente_id:      selPatient?.id ?? null,
+        dentista_id:      dentistRecord?.id ?? null,
+        data:             selDate,
+        hora_inicio:      selTime,
+        hora_fim:         `${endH}:${endM}`,
+        procedimento:     procedure,
+        status:           status === "confirmed" ? "confirmado" : "nao_confirmado",
+        observacoes:      notes || null,
+        is_novo_paciente: false,
+        is_break:         false,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agendamentos"] });
+      toast.success("Agendamento salvo com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro ao agendar: ${e.message}`),
+  });
+
   const procedures = (Object.keys(PROC_COLOR) as ProcedureType[]).filter(
     p => p !== "Intervalo"
   );
+  const selectCls =
+    "w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40";
 
   return (
     <div
@@ -277,18 +341,12 @@ function NewAppointmentModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "rgba(29,158,117,0.12)" }}
-            >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(29,158,117,0.12)" }}>
               <CalendarCheck size={16} className="text-[#1D9E75]" />
             </div>
             <h2 className="text-white font-bold text-base">Novo Agendamento</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white/40 hover:text-white transition-colors"
-          >
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -298,14 +356,8 @@ function NewAppointmentModal({
           {/* Dentist */}
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">Dentista</label>
-            <select
-              value={selDentist}
-              onChange={e => setSelDentist(e.target.value as DentistKey)}
-              className="w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40"
-            >
-              {DENTISTS.map(d => (
-                <option key={d.key} value={d.key}>{d.name}</option>
-              ))}
+            <select value={selDentist} onChange={e => setSelDentist(e.target.value as DentistKey)} className={selectCls}>
+              {DENTISTS.map(d => <option key={d.key} value={d.key}>{d.name}</option>)}
             </select>
           </div>
 
@@ -313,20 +365,11 @@ function NewAppointmentModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Data</label>
-              <input
-                type="date"
-                defaultValue="2026-05-27"
-                className="w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40"
-              />
+              <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)} className={selectCls} />
             </div>
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Horário</label>
-              <input
-                type="time"
-                value={selTime}
-                onChange={e => setSelTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40"
-              />
+              <input type="time" value={selTime} onChange={e => setSelTime(e.target.value)} className={selectCls} />
             </div>
           </div>
 
@@ -334,62 +377,63 @@ function NewAppointmentModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Duração</label>
-              <select
-                value={duration}
-                onChange={e => setDuration(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40"
-              >
-                {[30, 60, 90, 120].map(d => (
-                  <option key={d} value={String(d)}>{d} min</option>
-                ))}
+              <select value={duration} onChange={e => setDuration(e.target.value)} className={selectCls}>
+                {[30, 60, 90, 120].map(d => <option key={d} value={String(d)}>{d} min</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Procedimento</label>
-              <select
-                value={procedure}
-                onChange={e => setProcedure(e.target.value as ProcedureType)}
-                className="w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40"
-              >
-                {procedures.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
+              <select value={procedure} onChange={e => setProcedure(e.target.value as ProcedureType)} className={selectCls}>
+                {procedures.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Patient */}
+          {/* Patient search */}
           <div>
-            <label className="text-xs text-white/40 mb-1.5 block">Paciente</label>
-            <input
-              type="text"
-              value={patient}
-              onChange={e => setPatient(e.target.value)}
-              placeholder="Buscar paciente..."
-              className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40"
-            />
+            <label className="text-xs text-white/40 mb-1.5 block">
+              Paciente {searchingPat && <LoaderCircle size={10} className="inline animate-spin ml-1" />}
+            </label>
+            {selPatient ? (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-[#1D9E75]/35" style={{ background: "rgba(29,158,117,0.08)" }}>
+                <span className="text-sm text-white">{selPatient.nome}</span>
+                <button onClick={() => { setSelPatient(null); setPatSearch(""); }} className="text-white/40 hover:text-white"><X size={12} /></button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={patSearch}
+                  onChange={e => setPatSearch(e.target.value)}
+                  placeholder="Buscar paciente pelo nome…"
+                  className={`${selectCls} placeholder-white/20`}
+                />
+                {patients.length > 0 && patSearch.trim().length >= 2 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-white/[0.08] overflow-hidden z-10 shadow-xl" style={{ background: "#1A1F35" }}>
+                    {patients.slice(0, 6).map(p => (
+                      <button key={p.id} onClick={() => { setSelPatient({ id: p.id, nome: p.nome }); setPatSearch(""); }}
+                        className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/[0.06] transition-colors flex items-center justify-between">
+                        <span>{p.nome}</span>
+                        <span className="text-xs text-white/30">{p.telefone}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Status */}
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">Status</label>
             <div className="flex gap-2">
-              {(
-                [
-                  { v: "confirmed" as const,   label: "Confirmado",      activeColor: "#1D9E75", activeBg: "rgba(29,158,117,0.14)",  activeBorder: "rgba(29,158,117,0.35)" },
-                  { v: "unconfirmed" as const, label: "Não confirmado",  activeColor: "#CA8A04", activeBg: "rgba(202,138,4,0.11)",   activeBorder: "rgba(202,138,4,0.3)"  },
-                ]
-              ).map(s => (
-                <button
-                  key={s.v}
-                  onClick={() => setStatus(s.v)}
+              {([
+                { v: "confirmed" as const,   label: "Confirmado",     activeColor: "#1D9E75", activeBg: "rgba(29,158,117,0.14)", activeBorder: "rgba(29,158,117,0.35)" },
+                { v: "unconfirmed" as const, label: "Não confirmado", activeColor: "#CA8A04", activeBg: "rgba(202,138,4,0.11)",  activeBorder: "rgba(202,138,4,0.3)"  },
+              ]).map(s => (
+                <button key={s.v} onClick={() => setStatus(s.v)}
                   className="flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-all"
-                  style={{
-                    background:   status === s.v ? s.activeBg     : "transparent",
-                    borderColor:  status === s.v ? s.activeBorder : "rgba(255,255,255,0.08)",
-                    color:        status === s.v ? s.activeColor  : "rgba(255,255,255,0.38)",
-                  }}
-                >
+                  style={{ background: status === s.v ? s.activeBg : "transparent", borderColor: status === s.v ? s.activeBorder : "rgba(255,255,255,0.08)", color: status === s.v ? s.activeColor : "rgba(255,255,255,0.38)" }}>
                   {s.label}
                 </button>
               ))}
@@ -399,29 +443,24 @@ function NewAppointmentModal({
           {/* Notes */}
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">Observações</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              rows={2}
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
               placeholder="Observações opcionais..."
-              className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40 resize-none"
-            />
+              className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40 resize-none" />
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm text-white/55 border border-white/[0.08] hover:border-white/[0.18] transition-all"
-          >
+          <button onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm text-white/55 border border-white/[0.08] hover:border-white/[0.18] transition-all">
             Cancelar
           </button>
           <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
-            style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.22)" }}
-          >
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 transition-all hover:brightness-110"
+            style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.22)" }}>
+            {saveMut.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <CalendarCheck size={14} />}
             Agendar
           </button>
         </div>
@@ -593,9 +632,43 @@ export default function AgendaPage() {
   const [newApptDentist, setNewApptDentist] = useState<DentistKey | null>(null);
   const [newApptTime,    setNewApptTime]    = useState("09:00");
   const [view,           setView]           = useState<"dia" | "semana">("dia");
+  const TODAY = "2026-05-27";
 
   const timelineRef  = useRef<HTMLDivElement>(null);
   const currentTimeY = useCurrentTimeY();
+
+  /* ── Supabase queries ── */
+  const { data: dbDentistas = [] } = useQuery({
+    queryKey: ["dentistas"],
+    queryFn:  fetchDentistas,
+  });
+
+  const { data: dbAgendamentos = [], isLoading: loadingAppts } = useQuery({
+    queryKey: ["agendamentos", TODAY],
+    queryFn:  () => fetchAgendamentosByDate(TODAY),
+  });
+
+  /* Map DB agendamentos → local Appointment shape (overlay on static) */
+  const liveAppts: Appointment[] = dbAgendamentos.map(a => {
+    const dentKey: DentistKey =
+      (a.dentistas?.nome ?? "").toLowerCase().includes("ana") ? "ana"
+      : (a.dentistas?.nome ?? "").toLowerCase().includes("bruno") ? "bruno"
+      : "carla";
+    return {
+      id:        Number(a.id.replace(/-/g, "").slice(0, 8) || 0),
+      dentist:   dentKey,
+      procedure: (a.procedimento ?? "Consulta") as ProcedureType,
+      start:     a.hora_inicio.slice(0, 5),
+      end:       a.hora_fim.slice(0, 5),
+      patient:   a.pacientes?.nome ?? "Paciente",
+      phone:     a.pacientes?.telefone ?? undefined,
+      confirmed: a.status === "confirmado",
+      isBreak:   a.is_break,
+    };
+  });
+
+  /* Use live data if available, else fall back to static demo data */
+  const displayAppts = liveAppts.length > 0 ? liveAppts : APPOINTMENTS;
 
   // Scroll to 08:00 on first render
   useEffect(() => {
@@ -609,8 +682,8 @@ export default function AgendaPage() {
     setNewApptTime(time);
   }
 
-  const totalReal      = APPOINTMENTS.filter(a => !a.isBreak).length;
-  const totalConfirmed = APPOINTMENTS.filter(a => !a.isBreak && a.confirmed).length;
+  const totalReal      = displayAppts.filter(a => !a.isBreak).length;
+  const totalConfirmed = displayAppts.filter(a => !a.isBreak && a.confirmed).length;
 
   return (
     <div className="min-h-screen flex" style={{ background: "#0C0F1A" }}>
@@ -719,7 +792,7 @@ export default function AgendaPage() {
             style={{ background: "rgba(12,15,26,0.95)", paddingLeft: 64 }}
           >
             {DENTISTS.map(d => {
-              const c = getDentistCounters(d.key);
+              const c = getDentistCounters(d.key, displayAppts);
               return (
                 <div
                   key={d.key}
@@ -788,8 +861,8 @@ export default function AgendaPage() {
                 style={{ height: TOTAL_HEIGHT }}
               >
                 {DENTISTS.map((d, di) => {
-                  const colAppts   = APPOINTMENTS.filter(a => a.dentist === d.key);
-                  const freeSlots  = buildFreeSlots(d.key);
+                  const colAppts   = displayAppts.filter(a => a.dentist === d.key);
+                  const freeSlots  = buildFreeSlotsFromAppts(d.key, displayAppts);
 
                   return (
                     <div
@@ -881,6 +954,7 @@ export default function AgendaPage() {
           dentist={newApptDentist}
           time={newApptTime}
           onClose={() => setNewApptDentist(null)}
+          dbDentistas={dbDentistas}
         />
       )}
     </div>
