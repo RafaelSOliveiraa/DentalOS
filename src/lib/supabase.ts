@@ -1,28 +1,37 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-
-/* ─── Lazy singleton ─────────────────────────────────────────────────────────
-   createClient() NOT called at import time — only the first time getSupabase()
-   is invoked inside a React Query queryFn (client-side, after hydration).
-   This prevents Vercel from throwing "supabaseUrl is required" / "Invalid
-   supabaseUrl" during static prerendering when env vars are absent or empty.
+/* ─── Lazy Supabase singleton ────────────────────────────────────────────────
+   createClient() is NOT called at module import time.
+   It is invoked only on the first getSupabase() call, which happens inside
+   React Query queryFn callbacks — never during Next.js static prerendering.
+   This prevents "supabaseUrl is required" / "Invalid supabaseUrl" errors on
+   Vercel when env vars are absent or empty at build time.
 ──────────────────────────────────────────────────────────────────────────── */
-let _client: SupabaseClient | null = null;
 
-export function getSupabase(): SupabaseClient {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _client: any = null;
+
+export function getSupabase() {
   if (_client) return _client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
   if (!url || !key) {
     throw new Error(
-      "Supabase: missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
-        "Add them in Vercel → Settings → Environment Variables."
+      "Supabase env vars not set. Add NEXT_PUBLIC_SUPABASE_URL and " +
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables."
     );
   }
+
+  // Dynamic require keeps the supabase-js module out of the module-init
+  // critical path — the bundler resolves it at build time, but the
+  // Node/browser module is only loaded when this function is first called.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { createClient } = require("@supabase/supabase-js");
   _client = createClient(url, key);
   return _client;
 }
 
-/* ─── Table types ─── */
+/* ─── Table row types ────────────────────────────────────────────────────── */
 
 export interface DentistaRow {
   id: string;
