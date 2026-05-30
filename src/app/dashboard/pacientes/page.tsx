@@ -13,7 +13,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { Skeleton, SkeletonRow } from "@/components/ui/Skeleton";
-import { fetchPacientes, createPaciente } from "@/lib/queries";
+import { fetchPacientes, createPaciente, fetchDentistas } from "@/lib/queries";
 
 /* ─── Types ─── */
 type PatientStatus = "ATIVO" | "INADIMPLENTE" | "NOVO" | "INATIVO";
@@ -193,7 +193,58 @@ function RowMenu({ patient, onDetail }: { patient: Patient; onDetail: () => void
 const REFERRAL_OPTIONS: ReferralOption[] = ["Instagram", "Indicação", "Google", "Outros"];
 
 function NewPatientModal({ onClose }: { onClose: () => void }) {
-  const [referral, setReferral] = useState<ReferralOption>("Indicação");
+  const qc = useQueryClient();
+
+  /* Controlled fields */
+  const [nome,           setNome]           = useState("");
+  const [cpf,            setCpf]            = useState("");
+  const [dataNasc,       setDataNasc]       = useState("");
+  const [telefone,       setTelefone]       = useState("");
+  const [email,          setEmail]          = useState("");
+  const [tratamento,     setTratamento]     = useState("Consulta");
+  const [dentistaId,     setDentistaId]     = useState("");
+  const [comoConheceu,   setComoConheceu]   = useState<ReferralOption>("Indicação");
+  const [sexo,           setSexo]           = useState("F");
+
+  /* Fetch dentistas for dropdown */
+  const { data: dbDentistas = [] } = useQuery({
+    queryKey: ["dentistas"],
+    queryFn:  fetchDentistas,
+  });
+
+  /* Create mutation */
+  const saveMut = useMutation({
+    mutationFn: () =>
+      createPaciente({
+        nome,
+        cpf:               cpf || null,
+        data_nascimento:   dataNasc || null,
+        telefone:          telefone || null,
+        email:             email || null,
+        sexo,
+        endereco_rua:      null,
+        endereco_bairro:   null,
+        endereco_cidade:   null,
+        endereco_estado:   null,
+        endereco_cep:      null,
+        como_conheceu:     comoConheceu,
+        dentista_id:       dentistaId || null,
+        status:            "NOVO",
+        tratamento:        tratamento || null,
+        balance:           0,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pacientes"] });
+      toast.success("Paciente cadastrado com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro ao cadastrar: ${e.message}`),
+  });
+
+  const inputCls =
+    "w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors";
+  const inputStyle = { background: "#0C0F1A" };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
       <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] shadow-2xl overflow-hidden" style={{ background: "#131726" }}>
@@ -201,56 +252,129 @@ function NewPatientModal({ onClose }: { onClose: () => void }) {
           <h2 className="text-white font-semibold text-base">Novo Paciente</h2>
           <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><X size={18} /></button>
         </div>
+
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
+            {/* Nome */}
             <div className="col-span-2">
               <label className="block text-xs text-white/40 mb-1.5">Nome completo *</label>
-              <input className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="Ex: Maria Oliveira" />
+              <input
+                value={nome} onChange={e => setNome(e.target.value)}
+                className={inputCls} style={inputStyle}
+                placeholder="Ex: Maria Oliveira"
+              />
             </div>
+
+            {/* CPF */}
             <div>
               <label className="block text-xs text-white/40 mb-1.5">CPF</label>
-              <input className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="000.000.000-00" />
+              <input
+                value={cpf} onChange={e => setCpf(e.target.value)}
+                className={inputCls} style={inputStyle}
+                placeholder="000.000.000-00"
+              />
             </div>
+
+            {/* Data de nascimento */}
             <div>
               <label className="block text-xs text-white/40 mb-1.5">Data de nascimento</label>
-              <input type="date" className="w-full rounded-xl px-3 py-2.5 text-sm text-white/70 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} />
+              <input
+                type="date" value={dataNasc} onChange={e => setDataNasc(e.target.value)}
+                className={inputCls + " text-white/70"} style={inputStyle}
+              />
             </div>
+
+            {/* Telefone */}
             <div>
               <label className="block text-xs text-white/40 mb-1.5">Telefone *</label>
-              <input className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="(11) 90000-0000" />
+              <input
+                value={telefone} onChange={e => setTelefone(e.target.value)}
+                className={inputCls} style={inputStyle}
+                placeholder="(11) 90000-0000"
+              />
             </div>
+
+            {/* E-mail */}
             <div>
               <label className="block text-xs text-white/40 mb-1.5">E-mail</label>
-              <input type="email" className="w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/20 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }} placeholder="email@exemplo.com" />
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                className={inputCls} style={inputStyle}
+                placeholder="email@exemplo.com"
+              />
             </div>
+
+            {/* Tratamento */}
             <div>
               <label className="block text-xs text-white/40 mb-1.5">Tratamento</label>
-              <select className="w-full rounded-xl px-3 py-2.5 text-sm text-white/70 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }}>
-                {TREATMENTS.filter(t => t !== "Todos").map(t => <option key={t}>{t}</option>)}
+              <select
+                value={tratamento} onChange={e => setTratamento(e.target.value)}
+                className={inputCls + " text-white/70"} style={inputStyle}
+              >
+                {TREATMENTS.filter(t => t !== "Todos").map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+
+            {/* Dentista */}
             <div>
               <label className="block text-xs text-white/40 mb-1.5">Dentista responsável</label>
-              <select className="w-full rounded-xl px-3 py-2.5 text-sm text-white/70 border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/50 transition-colors" style={{ background: "#0C0F1A" }}>
-                {DENTISTS.filter(d => d !== "Todos").map(d => <option key={d}>{d}</option>)}
+              <select
+                value={dentistaId} onChange={e => setDentistaId(e.target.value)}
+                className={inputCls + " text-white/70"} style={inputStyle}
+              >
+                <option value="">Selecionar…</option>
+                {dbDentistas.length > 0
+                  ? dbDentistas.map(d => <option key={d.id} value={d.id}>{d.nome}</option>)
+                  : DENTISTS.filter(d => d !== "Todos").map(d => <option key={d} value={d}>{d}</option>)
+                }
+              </select>
+            </div>
+
+            {/* Sexo */}
+            <div>
+              <label className="block text-xs text-white/40 mb-1.5">Sexo</label>
+              <select
+                value={sexo} onChange={e => setSexo(e.target.value)}
+                className={inputCls + " text-white/70"} style={inputStyle}
+              >
+                <option value="F">Feminino</option>
+                <option value="M">Masculino</option>
+                <option value="O">Outro</option>
               </select>
             </div>
           </div>
+
+          {/* Como conheceu */}
           <div>
             <label className="block text-xs text-white/40 mb-2">Como nos conheceu?</label>
             <div className="flex flex-wrap gap-2">
               {REFERRAL_OPTIONS.map(opt => (
-                <button key={opt} onClick={() => setReferral(opt)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${referral === opt ? "border-[#1D9E75] text-[#1D9E75] bg-[#1D9E75]/10" : "border-white/[0.08] text-white/40 hover:border-white/20"}`}>
+                <button key={opt} onClick={() => setComoConheceu(opt)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${comoConheceu === opt ? "border-[#1D9E75] text-[#1D9E75] bg-[#1D9E75]/10" : "border-white/[0.08] text-white/40 hover:border-white/20"}`}>
                   {opt}
                 </button>
               ))}
             </div>
           </div>
         </div>
+
         <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm text-white/50 border border-white/[0.08] hover:bg-white/[0.04] transition-colors">Cancelar</button>
-          <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1D9E75] hover:bg-[#18896A] transition-colors">Salvar paciente</button>
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-sm text-white/50 border border-white/[0.08] hover:bg-white/[0.04] transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending || !nome.trim()}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1D9E75] hover:bg-[#18896A] disabled:opacity-60 transition-colors"
+          >
+            {saveMut.isPending
+              ? <LoaderCircle size={14} className="animate-spin" />
+              : null}
+            Salvar paciente
+          </button>
         </div>
       </div>
     </div>

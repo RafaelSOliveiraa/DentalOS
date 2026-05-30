@@ -126,6 +126,20 @@ export async function createAgendamento(
   return data;
 }
 
+export async function updateAgendamento(
+  id: string,
+  payload: Partial<Omit<AgendamentoRow, "id" | "criado_em">>
+): Promise<AgendamentoRow> {
+  const { data, error } = await getSupabase()
+    .from("agendamentos")
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 /* ─── Anamnese ─── */
 export async function fetchAnamnese(
   pacienteId: string

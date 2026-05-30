@@ -14,6 +14,7 @@ import {
   fetchDentistas,
   fetchAgendamentosByDate,
   createAgendamento,
+  updateAgendamento,
   fetchPacientes,
 } from "@/lib/queries";
 import type { DentistaRow, AgendamentoRow } from "@/lib/supabase";
@@ -28,11 +29,14 @@ type ProcedureType =
   | "Intervalo"
   | "Urgência";
 
-type DentistKey = "ana" | "bruno" | "carla";
+type DentistKey = string; // "ana"|"bruno"|"carla" for static demo, DB UUID for live data
 
 interface Appointment {
   id: number;
+  dbId?: string;           // original Supabase UUID — needed for mutations
   dentist: DentistKey;
+  dentistName?: string;    // populated from DB row
+  dentistColor?: string;
   procedure: ProcedureType;
   start: string; // "HH:MM"
   end: string;   // "HH:MM"
@@ -261,17 +265,19 @@ function FreeSlot({
 function NewAppointmentModal({
   dentist,
   time,
+  activeDate,
   onClose,
   dbDentistas,
 }: {
   dentist: DentistKey;
   time: string;
+  activeDate: string;
   onClose: () => void;
   dbDentistas: DentistaRow[];
 }) {
   const qc = useQueryClient();
   const [selDentist, setSelDentist] = useState(dentist);
-  const [selDate,    setSelDate]    = useState("2026-05-27");
+  const [selDate,    setSelDate]    = useState(activeDate);
   const [selTime,    setSelTime]    = useState(time);
   const [duration,   setDuration]   = useState("60");
   const [patSearch,  setPatSearch]  = useState("");
@@ -290,12 +296,15 @@ function NewAppointmentModal({
   /* Save mutation */
   const saveMut = useMutation({
     mutationFn: () => {
-      const dentistRecord = dbDentistas.find(d => {
-        const key = d.nome.toLowerCase().includes("ana") ? "ana"
-          : d.nome.toLowerCase().includes("bruno") ? "bruno"
-          : "carla";
-        return key === selDentist;
-      }) ?? dbDentistas[0];
+      // selDentist holds the DB UUID (when using displayDentists) or "ana"/"bruno"/"carla"
+      const dentistRecord =
+        dbDentistas.find(d => d.id === selDentist) ??
+        dbDentistas.find(d => {
+          const k = d.nome.toLowerCase().includes("ana")   ? "ana"
+                  : d.nome.toLowerCase().includes("bruno") ? "bruno" : "carla";
+          return k === selDentist;
+        }) ??
+        dbDentistas[0];
 
       const [h, m] = selTime.split(":").map(Number);
       const endMin  = h * 60 + m + Number(duration);
@@ -323,7 +332,8 @@ function NewAppointmentModal({
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["agendamentos"] });
+      // Invalidate the exact key for the active date so the grid refreshes (P5)
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate] });
       toast.success("Agendamento salvo com sucesso!");
       onClose();
     },
@@ -364,7 +374,9 @@ function NewAppointmentModal({
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">Dentista</label>
             <select value={selDentist} onChange={e => setSelDentist(e.target.value as DentistKey)} className={selectCls}>
-              {DENTISTS.map(d => <option key={d.key} value={d.key}>{d.name}</option>)}
+              {dbDentistas.length > 0
+                ? dbDentistas.map(d => <option key={d.id} value={d.id}>{d.nome}</option>)
+                : DENTISTS.map(d => <option key={d.key} value={d.key}>{d.name}</option>)}
             </select>
           </div>
 
@@ -476,160 +488,309 @@ function NewAppointmentModal({
   );
 }
 
-/* ─── Appointment Detail Modal ─── */
-function AppointmentDetailModal({
+/* ─── Remarcar Modal (P2) ─── */
+function RemarcarModal({
   appt,
+  activeDate,
   onClose,
 }: {
   appt: Appointment;
+  activeDate: string;
   onClose: () => void;
 }) {
-  const color   = PROC_COLOR[appt.procedure];
-  const dentist = DENTISTS.find(d => d.key === appt.dentist)!;
+  const qc = useQueryClient();
+  const [novaData,   setNovaData]   = useState(activeDate);
+  const [novoHorario,setNovoHorario]= useState(appt.start);
+  const [motivo,     setMotivo]     = useState("");
 
-  const actions: {
-    label: string;
-    Icon: React.ElementType;
-    color: string;
-    bg: string;
-    border: string;
-  }[] = [
-    { label: "Confirmar", Icon: CheckCircle2, color: "#1D9E75", bg: "rgba(29,158,117,0.12)",  border: "rgba(29,158,117,0.28)" },
-    { label: "Cancelar",  Icon: CalendarX,    color: "#DC2626", bg: "rgba(220,38,38,0.09)",   border: "rgba(220,38,38,0.22)"  },
-    { label: "Realizar",  Icon: CalendarCheck,color: "#5B8DEF", bg: "rgba(91,141,239,0.09)",  border: "rgba(91,141,239,0.22)" },
-    { label: "Falta",     Icon: UserCheck,    color: "#CA8A04", bg: "rgba(202,138,4,0.09)",   border: "rgba(202,138,4,0.22)"  },
-  ];
+  const remarcaMut = useMutation({
+    mutationFn: () => {
+      if (!appt.dbId) throw new Error("ID do agendamento não disponível");
+      const data_hora = new Date(`${novaData}T${novoHorario}:00`).toISOString();
+      return updateAgendamento(appt.dbId, {
+        data:      novaData,
+        hora:      novoHorario,
+        data_hora,
+        observacoes: motivo || null,
+        status:    "remarcado",
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate] });
+      qc.invalidateQueries({ queryKey: ["agendamentos", novaData] });
+      toast.success("Consulta remarcada!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro ao remarcar: ${e.message}`),
+  });
+
+  const inputCls =
+    "w-full px-3 py-2 rounded-lg text-sm text-white bg-[#1A1F35] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/40";
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.72)" }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.80)" }}
     >
       <div
         className="w-full max-w-sm rounded-2xl border border-white/[0.08] overflow-hidden"
         style={{ background: "#131726" }}
       >
-        {/* Header */}
-        <div
-          className="px-6 py-4 border-b border-white/[0.06]"
-          style={{ borderLeft: `4px solid ${color}` }}
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0 pr-3">
-              <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                <span
-                  className="text-xs font-semibold px-2 py-0.5 rounded"
-                  style={{ background: `${color}20`, color }}
-                >
-                  {appt.procedure}
-                </span>
-                {appt.isNew && (
-                  <span
-                    className="text-xs font-bold px-2 py-0.5 rounded"
-                    style={{ background: "#EA580C20", color: "#EA580C" }}
-                  >
-                    Novo Paciente
-                  </span>
-                )}
-                {appt.confirmed ? (
-                  <span
-                    className="text-xs px-2 py-0.5 rounded"
-                    style={{ background: "rgba(29,158,117,0.13)", color: "#1D9E75" }}
-                  >
-                    ✓ Confirmado
-                  </span>
-                ) : (
-                  <span
-                    className="text-xs px-2 py-0.5 rounded"
-                    style={{ background: "rgba(202,138,4,0.11)", color: "#CA8A04" }}
-                  >
-                    ⚠ Aguardando
-                  </span>
-                )}
-              </div>
-              <h2 className="text-white font-bold text-lg leading-tight truncate">
-                {appt.patient}
-              </h2>
-              <p className="text-white/40 text-sm mt-0.5">
-                {appt.start} – {appt.end} · {dentist.name}
-              </p>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(91,141,239,0.14)" }}>
+              <Calendar size={14} className="text-[#5B8DEF]" />
             </div>
-            <button
-              onClick={onClose}
-              className="text-white/40 hover:text-white transition-colors flex-shrink-0"
-            >
-              <X size={18} />
-            </button>
+            <h2 className="text-white font-bold text-sm">Remarcar Consulta</h2>
           </div>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+            <X size={16} />
+          </button>
         </div>
-
-        {/* Info rows */}
         <div className="px-6 py-4 space-y-3">
-          {appt.phone && (
-            <div className="flex items-center gap-3">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: "rgba(255,255,255,0.04)" }}
-              >
-                <Phone size={14} className="text-white/35" />
-              </div>
-              <div>
-                <p className="text-xs text-white/30">Telefone</p>
-                <p className="text-sm text-white">{appt.phone}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,255,255,0.04)" }}
-            >
-              <Clock size={14} className="text-white/35" />
+          <p className="text-xs text-white/40">
+            Paciente: <span className="text-white/70">{appt.patient}</span>
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-white/40 mb-1.5 block">Nova data</label>
+              <input type="date" value={novaData} onChange={e => setNovaData(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <p className="text-xs text-white/30">Duração</p>
-              <p className="text-sm text-white">
-                {timeDiffMin(appt.start, appt.end)} min · {appt.start} – {appt.end}
-              </p>
+              <label className="text-xs text-white/40 mb-1.5 block">Novo horário</label>
+              <input type="time" value={novoHorario} onChange={e => setNovoHorario(e.target.value)} className={inputCls} />
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,255,255,0.04)" }}
-            >
-              <User size={14} className="text-white/35" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                style={{ background: `${dentist.color}20`, color: dentist.color }}
-              >
-                {dentist.initials}
-              </span>
-              <p className="text-sm text-white">{dentist.name}</p>
-            </div>
+          <div>
+            <label className="text-xs text-white/40 mb-1.5 block">Motivo da remarcação</label>
+            <textarea
+              rows={2}
+              value={motivo}
+              onChange={e => setMotivo(e.target.value)}
+              placeholder="Ex: Paciente solicitou mudança de horário"
+              className={inputCls + " resize-none"}
+            />
           </div>
         </div>
-
-        {/* Action buttons */}
-        <div className="px-6 pb-5 grid grid-cols-2 gap-2">
-          {actions.map(({ label, Icon, color: c, bg, border }) => (
-            <button
-              key={label}
-              onClick={onClose}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all hover:brightness-110"
-              style={{ background: bg, borderColor: border, color: c }}
-            >
-              <Icon size={13} />
-              {label}
-            </button>
-          ))}
+        <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm text-white/55 border border-white/[0.08] hover:border-white/20 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => remarcaMut.mutate()}
+            disabled={remarcaMut.isPending}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60 hover:brightness-110 transition-all"
+            style={{ background: "#5B8DEF" }}
+          >
+            {remarcaMut.isPending
+              ? <LoaderCircle size={14} className="animate-spin" />
+              : <CalendarCheck size={14} />}
+            Confirmar remarcação
+          </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/* ─── Appointment Detail Modal (P1 — botões com mutations) ─── */
+function AppointmentDetailModal({
+  appt,
+  activeDate,
+  onClose,
+}: {
+  appt: Appointment;
+  activeDate: string;
+  onClose: () => void;
+}) {
+  const qc    = useQueryClient();
+  const color = PROC_COLOR[appt.procedure] ?? "#5B8DEF";
+  const [showRemarcar, setShowRemarcar] = useState(false);
+
+  // Resolve dentist display — prefer data stored in appointment (from DB),
+  // fall back to static DENTISTS lookup
+  const staticDentist = DENTISTS.find(d => d.key === appt.dentist);
+  const dentistName   = appt.dentistName  ?? staticDentist?.name    ?? "—";
+  const dentistColor  = appt.dentistColor ?? staticDentist?.color   ?? "#1D9E75";
+  const dentistInitials = dentistName
+    .split(" ")
+    .filter(w => w !== "Dra." && w !== "Dr.")
+    .slice(0, 2)
+    .map(w => w[0])
+    .join("")
+    .toUpperCase();
+
+  /* Status mutation */
+  const statusMut = useMutation({
+    mutationFn: (status: string) => {
+      if (!appt.dbId) throw new Error("Agendamento demo — sem ID no banco");
+      return updateAgendamento(appt.dbId, {
+        status,
+        confirmado: status === "confirmado",
+      });
+    },
+    onSuccess: (_data, status) => {
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate] });
+      const msgs: Record<string, string> = {
+        confirmado: "Consulta confirmada!",
+        cancelado:  "Consulta cancelada.",
+        realizado:  "Consulta marcada como realizada!",
+        falta:      "Falta registrada.",
+      };
+      toast.success(msgs[status] ?? "Status atualizado!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro: ${e.message}`),
+  });
+
+  const actions: {
+    label: string;
+    status: string;
+    Icon: React.ElementType;
+    color: string;
+    bg: string;
+    border: string;
+  }[] = [
+    { label: "Confirmar", status: "confirmado", Icon: CheckCircle2, color: "#1D9E75", bg: "rgba(29,158,117,0.12)",  border: "rgba(29,158,117,0.28)" },
+    { label: "Cancelar",  status: "cancelado",  Icon: CalendarX,    color: "#DC2626", bg: "rgba(220,38,38,0.09)",   border: "rgba(220,38,38,0.22)"  },
+    { label: "Realizar",  status: "realizado",  Icon: CalendarCheck,color: "#5B8DEF", bg: "rgba(91,141,239,0.09)",  border: "rgba(91,141,239,0.22)" },
+    { label: "Falta",     status: "falta",      Icon: UserCheck,    color: "#CA8A04", bg: "rgba(202,138,4,0.09)",   border: "rgba(202,138,4,0.22)"  },
+  ];
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.72)" }}
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl border border-white/[0.08] overflow-hidden"
+          style={{ background: "#131726" }}
+        >
+          {/* Header */}
+          <div
+            className="px-6 py-4 border-b border-white/[0.06]"
+            style={{ borderLeft: `4px solid ${color}` }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0 pr-3">
+                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded"
+                    style={{ background: `${color}20`, color }}
+                  >
+                    {appt.procedure}
+                  </span>
+                  {appt.isNew && (
+                    <span
+                      className="text-xs font-bold px-2 py-0.5 rounded"
+                      style={{ background: "#EA580C20", color: "#EA580C" }}
+                    >
+                      Novo Paciente
+                    </span>
+                  )}
+                  {appt.confirmed ? (
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(29,158,117,0.13)", color: "#1D9E75" }}>
+                      ✓ Confirmado
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(202,138,4,0.11)", color: "#CA8A04" }}>
+                      ⚠ Aguardando
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-white font-bold text-lg leading-tight truncate">{appt.patient}</h2>
+                <p className="text-white/40 text-sm mt-0.5">
+                  {appt.start} – {appt.end} · {dentistName}
+                </p>
+              </div>
+              <button onClick={onClose} className="text-white/40 hover:text-white transition-colors flex-shrink-0">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Info rows */}
+          <div className="px-6 py-4 space-y-3">
+            {appt.phone && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <Phone size={14} className="text-white/35" />
+                </div>
+                <div>
+                  <p className="text-xs text-white/30">Telefone</p>
+                  <p className="text-sm text-white">{appt.phone}</p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <Clock size={14} className="text-white/35" />
+              </div>
+              <div>
+                <p className="text-xs text-white/30">Duração</p>
+                <p className="text-sm text-white">{timeDiffMin(appt.start, appt.end)} min · {appt.start} – {appt.end}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <User size={14} className="text-white/35" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: `${dentistColor}20`, color: dentistColor }}
+                >
+                  {dentistInitials}
+                </span>
+                <p className="text-sm text-white">{dentistName}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="px-6 pb-3 grid grid-cols-2 gap-2">
+            {actions.map(({ label, status, Icon, color: c, bg, border }) => (
+              <button
+                key={label}
+                onClick={() => statusMut.mutate(status)}
+                disabled={statusMut.isPending}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all hover:brightness-110 disabled:opacity-50"
+                style={{ background: bg, borderColor: border, color: c }}
+              >
+                {statusMut.isPending && statusMut.variables === status
+                  ? <LoaderCircle size={13} className="animate-spin" />
+                  : <Icon size={13} />}
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Remarcar button */}
+          <div className="px-6 pb-5">
+            <button
+              onClick={() => setShowRemarcar(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium border transition-all hover:border-[#5B8DEF]/50 hover:text-[#5B8DEF]"
+              style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)" }}
+            >
+              <Calendar size={14} />
+              Remarcar consulta
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showRemarcar && (
+        <RemarcarModal
+          appt={appt}
+          activeDate={activeDate}
+          onClose={() => { setShowRemarcar(false); onClose(); }}
+        />
+      )}
+    </>
   );
 }
 
@@ -657,25 +818,48 @@ export default function AgendaPage() {
 
   /* Map DB agendamentos → local Appointment shape (overlay on static) */
   const liveAppts: Appointment[] = dbAgendamentos.map(a => {
-    const dentKey: DentistKey =
-      (a.dentista_nome ?? "").toLowerCase().includes("ana")   ? "ana"
+    // Match dentista by name to get their DB ID (used as column key)
+    const dentista = dbDentistas.find(
+      d => d.nome.toLowerCase() === (a.dentista_nome ?? "").toLowerCase()
+    );
+    const dentKey: DentistKey = dentista?.id ??
+      ((a.dentista_nome ?? "").toLowerCase().includes("ana")   ? "ana"
       : (a.dentista_nome ?? "").toLowerCase().includes("bruno") ? "bruno"
-      : "carla";
+      : "carla");
     return {
-      id:        Number(a.id.replace(/-/g, "").slice(0, 8) || 0),
-      dentist:   dentKey,
-      procedure: (a.procedimento ?? "Consulta") as ProcedureType,
-      start:     (a.hora ?? "00:00").slice(0, 5),
-      end:       (a.hora_fim ?? "00:00").slice(0, 5),
-      patient:   a.paciente_nome ?? "Paciente",
-      phone:     undefined,
-      confirmed: a.confirmado,
-      isBreak:   false,
+      dbId:         a.id,
+      id:           Number(a.id.replace(/-/g, "").slice(0, 8) || 0),
+      dentist:      dentKey,
+      dentistName:  dentista?.nome  ?? a.dentista_nome  ?? "—",
+      dentistColor: dentista?.cor   ?? "#1D9E75",
+      procedure:    (a.procedimento ?? "Consulta") as ProcedureType,
+      start:        (a.hora     ?? "00:00").slice(0, 5),
+      end:          (a.hora_fim ?? "00:00").slice(0, 5),
+      patient:      a.paciente_nome ?? "Paciente",
+      phone:        undefined,
+      confirmed:    a.confirmado,
+      isBreak:      false,
     };
   });
 
   /* Use live data if available, else fall back to static demo data */
   const displayAppts = liveAppts.length > 0 ? liveAppts : APPOINTMENTS;
+
+  /* Dentist columns: DB active dentistas (or static fallback) — Problem 3 */
+  const displayDentists = dbDentistas.filter(d => d.ativo).length > 0
+    ? dbDentistas.filter(d => d.ativo).map(d => ({
+        key:      d.id,
+        name:     d.nome,
+        initials: d.nome
+          .split(" ")
+          .filter(w => w !== "Dra." && w !== "Dr.")
+          .slice(0, 2)
+          .map(w => w[0])
+          .join("")
+          .toUpperCase(),
+        color: d.cor,
+      }))
+    : DENTISTS;
 
   // Scroll to 08:00 on first render
   useEffect(() => {
@@ -758,7 +942,7 @@ export default function AgendaPage() {
             </div>
 
             <button
-              onClick={() => openNewAppt("ana", "09:00")}
+              onClick={() => openNewAppt(displayDentists[0]?.key ?? "ana", "09:00")}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 flex-shrink-0"
               style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.22)" }}
             >
@@ -798,7 +982,7 @@ export default function AgendaPage() {
             className="flex-none flex border-b border-white/[0.06]"
             style={{ background: "rgba(12,15,26,0.95)", paddingLeft: 64 }}
           >
-            {DENTISTS.map(d => {
+            {displayDentists.map(d => {
               const c = getDentistCounters(d.key, displayAppts);
               return (
                 <div
@@ -867,7 +1051,7 @@ export default function AgendaPage() {
                 className="flex-1 flex border-l border-white/[0.04]"
                 style={{ height: TOTAL_HEIGHT }}
               >
-                {DENTISTS.map((d, di) => {
+                {displayDentists.map((d, di) => {
                   const colAppts   = displayAppts.filter(a => a.dentist === d.key);
                   const freeSlots  = buildFreeSlotsFromAppts(d.key, displayAppts);
 
@@ -953,6 +1137,7 @@ export default function AgendaPage() {
       {selectedAppt && (
         <AppointmentDetailModal
           appt={selectedAppt}
+          activeDate={TODAY}
           onClose={() => setSelectedAppt(null)}
         />
       )}
@@ -960,6 +1145,7 @@ export default function AgendaPage() {
         <NewAppointmentModal
           dentist={newApptDentist}
           time={newApptTime}
+          activeDate={TODAY}
           onClose={() => setNewApptDentist(null)}
           dbDentistas={dbDentistas}
         />
