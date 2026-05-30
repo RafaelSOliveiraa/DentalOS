@@ -303,16 +303,21 @@ function NewAppointmentModal({
       const endM    = String(endMin % 60).padStart(2, "0");
 
       return createAgendamento({
-        paciente_id:      selPatient?.id ?? null,
-        dentista_id:      dentistRecord?.id ?? null,
-        data:             selDate,
-        hora_inicio:      selTime,
-        hora_fim:         `${endH}:${endM}`,
-        procedimento:     procedure,
-        status:           status === "confirmed" ? "confirmado" : "nao_confirmado",
-        observacoes:      notes || null,
-        is_novo_paciente: false,
-        is_break:         false,
+        paciente_id:       selPatient?.id    ?? null,
+        paciente_nome:     selPatient?.nome   ?? null,
+        dentista_nome:     dentistRecord?.nome ?? null,
+        data:              selDate,
+        hora:              selTime,
+        hora_fim:          `${endH}:${endM}`,
+        data_hora:         null,
+        duracao_minutos:   Number(duration),
+        procedimento:      procedure,
+        tipo_procedimento: procedure,
+        status:            "agendado",
+        confirmado:        status === "confirmed",
+        observacoes:       notes || null,
+        novo_paciente:     false,
+        cor:               PROC_COLOR[procedure] ?? null,
       });
     },
     onSuccess: () => {
@@ -651,19 +656,19 @@ export default function AgendaPage() {
   /* Map DB agendamentos → local Appointment shape (overlay on static) */
   const liveAppts: Appointment[] = dbAgendamentos.map(a => {
     const dentKey: DentistKey =
-      (a.dentistas?.nome ?? "").toLowerCase().includes("ana") ? "ana"
-      : (a.dentistas?.nome ?? "").toLowerCase().includes("bruno") ? "bruno"
+      (a.dentista_nome ?? "").toLowerCase().includes("ana")   ? "ana"
+      : (a.dentista_nome ?? "").toLowerCase().includes("bruno") ? "bruno"
       : "carla";
     return {
       id:        Number(a.id.replace(/-/g, "").slice(0, 8) || 0),
       dentist:   dentKey,
       procedure: (a.procedimento ?? "Consulta") as ProcedureType,
-      start:     a.hora_inicio.slice(0, 5),
-      end:       a.hora_fim.slice(0, 5),
-      patient:   a.pacientes?.nome ?? "Paciente",
-      phone:     a.pacientes?.telefone ?? undefined,
-      confirmed: a.status === "confirmado",
-      isBreak:   a.is_break,
+      start:     (a.hora ?? "00:00").slice(0, 5),
+      end:       (a.hora_fim ?? "00:00").slice(0, 5),
+      patient:   a.paciente_nome ?? "Paciente",
+      phone:     undefined,
+      confirmed: a.confirmado,
+      isBreak:   false,
     };
   });
 

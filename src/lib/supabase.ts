@@ -70,19 +70,23 @@ export interface PacienteRow {
 
 export interface AgendamentoRow {
   id: string;
-  paciente_id: string | null;
-  dentista_id: string | null;
   data: string;
-  hora_inicio: string;
-  hora_fim: string;
+  hora: string;               // era hora_inicio — coluna real na tabela
+  hora_fim: string | null;
+  data_hora: string | null;
+  duracao_minutos: number | null;
   procedimento: string | null;
+  tipo_procedimento: string | null;
   status: string;
+  confirmado: boolean;        // era status === "confirmado"
   observacoes: string | null;
-  is_novo_paciente: boolean;
-  is_break: boolean;
-  pacientes?: { nome: string; telefone: string | null } | null;
-  dentistas?: { nome: string; cor: string } | null;
-  created_at: string;
+  paciente_id: string | null;
+  paciente_nome: string | null; // desnormalizado — sem join
+  dentista_nome: string | null; // desnormalizado — sem join
+  novo_paciente: boolean;     // era is_novo_paciente
+  cor: string | null;
+  criado_em: string;          // era created_at
+  updated_at: string;
 }
 
 export interface AnamneseRow {

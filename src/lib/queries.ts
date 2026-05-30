@@ -107,15 +107,15 @@ export async function fetchAgendamentosByDate(
 ): Promise<AgendamentoRow[]> {
   const { data, error } = await getSupabase()
     .from("agendamentos")
-    .select(`*, pacientes(nome, telefone), dentistas(nome, cor)`)
+    .select("*")
     .eq("data", date)
-    .order("hora_inicio");
+    .order("hora");
   if (error) throw error;
   return data ?? [];
 }
 
 export async function createAgendamento(
-  payload: Omit<AgendamentoRow, "id" | "created_at" | "pacientes" | "dentistas">
+  payload: Omit<AgendamentoRow, "id" | "criado_em" | "updated_at">
 ): Promise<AgendamentoRow> {
   const { data, error } = await getSupabase()
     .from("agendamentos")
