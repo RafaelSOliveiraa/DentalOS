@@ -108,19 +108,42 @@ export interface AnamneseRow {
 export interface ConsultaRow {
   id: string;
   paciente_id: string;
-  dentista_id: string | null;
-  data: string;
-  queixa: string | null;
+  dentista_nome: string | null;
+  data_consulta: string;
+  tipo_consulta: string | null;
+  queixa_principal: string | null;
   exame_clinico: string | null;
   diagnostico: string | null;
   tratamento_realizado: string | null;
   prescricao: string | null;
   proximo_passo: string | null;
   observacoes: string | null;
-  procedimento: string | null;
-  proc_color: string | null;
   created_at: string;
-  dentistas?: { nome: string } | null;
+}
+
+export interface FinanceiroPacienteRow {
+  id: string;
+  paciente_id: string;
+  descricao: string;
+  valor_total: number;
+  num_parcelas: number;
+  data_primeira_parcela: string;
+  valor_pago: number;
+  created_at: string;
+}
+
+export interface ParcelaRow {
+  id: string;
+  financeiro_paciente_id: string;
+  paciente_id: string;
+  num_parcela: number;
+  valor: number;
+  vencimento: string;
+  status: "pendente" | "pago" | "atraso";
+  data_pagamento: string | null;
+  forma_pagamento: string | null;
+  valor_pago: number | null;
+  created_at: string;
 }
 
 /* ─── Estoque ─── */

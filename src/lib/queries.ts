@@ -11,6 +11,8 @@ import type {
   AnamneseRow,
   ConsultaRow,
   EstoqueMovRow,
+  FinanceiroPacienteRow,
+  ParcelaRow,
 } from "./supabase";
 
 /* ─── Dentistas ─── */
@@ -188,19 +190,82 @@ export async function fetchConsultas(
 ): Promise<ConsultaRow[]> {
   const { data, error } = await getSupabase()
     .from("consultas")
-    .select(`*, dentistas(nome)`)
+    .select("*")
     .eq("paciente_id", pacienteId)
-    .order("data", { ascending: false });
+    .order("data_consulta", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
 
 export async function createConsulta(
-  payload: Omit<ConsultaRow, "id" | "created_at" | "dentistas">
+  payload: Omit<ConsultaRow, "id" | "created_at">
 ): Promise<ConsultaRow> {
   const { data, error } = await getSupabase()
     .from("consultas")
     .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/* ─── Financeiro Paciente ─── */
+export async function fetchFinanceiroPaciente(
+  pacienteId: string
+): Promise<FinanceiroPacienteRow[]> {
+  const { data, error } = await getSupabase()
+    .from("financeiro_paciente")
+    .select("*")
+    .eq("paciente_id", pacienteId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createFinanceiroPaciente(
+  payload: Omit<FinanceiroPacienteRow, "id" | "created_at">
+): Promise<FinanceiroPacienteRow> {
+  const { data, error } = await getSupabase()
+    .from("financeiro_paciente")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/* ─── Parcelas ─── */
+export async function fetchParcelas(
+  pacienteId: string
+): Promise<ParcelaRow[]> {
+  const { data, error } = await getSupabase()
+    .from("parcelas")
+    .select("*")
+    .eq("paciente_id", pacienteId)
+    .order("vencimento", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createParcelas(
+  payload: Omit<ParcelaRow, "id" | "created_at">[]
+): Promise<ParcelaRow[]> {
+  const { data, error } = await getSupabase()
+    .from("parcelas")
+    .insert(payload)
+    .select();
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function updateParcela(
+  id: string,
+  payload: Partial<Omit<ParcelaRow, "id" | "created_at">>
+): Promise<ParcelaRow> {
+  const { data, error } = await getSupabase()
+    .from("parcelas")
+    .update(payload)
+    .eq("id", id)
     .select()
     .single();
   if (error) throw error;

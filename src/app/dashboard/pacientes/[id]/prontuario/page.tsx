@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ChevronLeft, User, Phone, Mail, MapPin,
+  ChevronLeft, User, Phone, MapPin,
   Stethoscope, Heart, Cigarette, Baby, Activity,
   ClipboardList, FileText, Plus, X, Save,
   Banknote, CreditCard, AlertCircle, CheckCircle2,
@@ -20,126 +20,24 @@ import {
   fetchConsultas,
   createConsulta,
   fetchPacienteById,
+  updatePaciente,
   fetchDentistas,
+  fetchFinanceiroPaciente,
+  createFinanceiroPaciente,
+  fetchParcelas,
+  createParcelas,
+  updateParcela,
 } from "@/lib/queries";
-import type { AnamneseRow, ConsultaRow } from "@/lib/supabase";
+import type {
+  PacienteRow,
+  DentistaRow,
+  FinanceiroPacienteRow,
+  ParcelaRow,
+} from "@/lib/supabase";
 
 /* ─── Types ─── */
 type TabType = "Dados Pessoais" | "Anamnese" | "Histórico Clínico" | "Financeiro";
 type ParcStatus = "pago" | "atraso" | "pendente";
-
-interface ConsultaEntry {
-  id: string | number;
-  date: string;
-  dentist: string;
-  queixa: string;
-  exame: string;
-  diagnostico: string;
-  tratamento: string;
-  prescricao: string;
-  proximoPasso: string;
-  observacoes: string;
-  procedure: string;
-  procColor: string;
-}
-
-interface Parcela {
-  num: number;
-  valor: number;
-  vencimento: string;
-  status: ParcStatus;
-  pagamento: string | null;
-}
-
-/* ─── Simulated data — João Silva (id=1) ─── */
-const PATIENT_DATA = {
-  id: 1,
-  name: "João Silva",
-  cpf: "123.456.789-01",
-  birthdate: "12/03/1992",
-  age: 34,
-  phone: "(11) 98765-4321",
-  email: "joao.silva@email.com",
-  sexo: "M",
-  status: "INADIMPLENTE" as const,
-  treatment: "Implante",
-  dentist: "Dra. Ana Paula",
-  lastVisit: "10/05/2026",
-  address: {
-    rua: "Rua das Flores, 482",
-    bairro: "Vila Mariana",
-    cidade: "São Paulo",
-    estado: "SP",
-    cep: "04120-020",
-  },
-  referral: "Indicação",
-};
-
-const ANAMNESE_DATA = {
-  pressao: "140/90 mmHg",
-  diabetico: false,
-  cardiopatia: false,
-  hipertensao: true,
-  fumante: false,
-  gravida: false,
-  alergias: "Dipirona sódica",
-  medicamentos: "Losartana 50mg — 1× ao dia\nAAS 100mg — 1× ao dia",
-  cirurgias: "Apendicectomia (2015)",
-  observacoes:
-    "Paciente hipertenso controlado. Verificar pressão arterial antes de procedimentos invasivos. Evitar vasoconstritores em alta concentração.",
-  lastUpdated: "10/05/2026",
-};
-
-const HISTORICO: ConsultaEntry[] = [
-  {
-    id: 2,
-    date: "10/05/2026",
-    dentist: "Dra. Ana Paula",
-    queixa: "Dor e inflamação na região do dente 36",
-    exame:
-      "Cárie profunda com comprometimento pulpar. Dente sem condições de restauração.",
-    diagnostico: "Indicação de extração do dente 36",
-    tratamento:
-      "Extração do dente 36 sob anestesia local. Procedimento sem intercorrências.",
-    prescricao:
-      "Amoxicilina 500mg 8/8h por 7 dias\nIbuprofeno 600mg 8/8h por 3 dias se dor",
-    proximoPasso: "Retorno em 7 dias para revisão da cicatrização. Planejar implante.",
-    observacoes:
-      "Pressão arterial verificada: 138/88 mmHg. Procedimento bem tolerado.",
-    procedure: "Extração",
-    procColor: "#DC2626",
-  },
-  {
-    id: 1,
-    date: "15/04/2026",
-    dentist: "Dra. Ana Paula",
-    queixa: "Dor de dente há 3 dias — região posterior inferior esquerda",
-    exame:
-      "Radiografia panorâmica realizada. Cárie extensa no dente 36 com provável envolvimento pulpar.",
-    diagnostico: "Cárie profunda dente 36 — avaliar extração",
-    tratamento:
-      "Avaliação completa e planejamento do tratamento. Radiografia panorâmica.",
-    prescricao: "Analgésico para controle da dor",
-    proximoPasso: "Retorno em 15 dias para extração planejada do dente 36",
-    observacoes:
-      "Paciente hipertenso. PA: 142/92 mmHg. Encaminhar para implante após extração.",
-    procedure: "Avaliação inicial",
-    procColor: "#5B8DEF",
-  },
-];
-
-const PARCELAS: Parcela[] = [
-  { num: 1, valor: 1000, vencimento: "15/02/2026", status: "pago",     pagamento: "14/02/2026" },
-  { num: 2, valor: 1000, vencimento: "15/03/2026", status: "pago",     pagamento: "18/03/2026" },
-  { num: 3, valor: 1000, vencimento: "15/04/2026", status: "pago",     pagamento: "20/04/2026" },
-  { num: 4, valor:  600, vencimento: "15/05/2026", status: "atraso",   pagamento: null         },
-  { num: 5, valor:  600, vencimento: "15/06/2026", status: "pendente", pagamento: null         },
-  { num: 6, valor:  600, vencimento: "15/07/2026", status: "pendente", pagamento: null         },
-];
-
-const TOTAL   = 4800;
-const PAID    = 3000;
-const REMAINING = 1800;
 
 /* ─── Helpers ─── */
 function fmtBRL(v: number) {
@@ -147,12 +45,12 @@ function fmtBRL(v: number) {
 }
 
 const PARC_CFG: Record<ParcStatus, { label: string; color: string; bg: string; border: string }> = {
-  pago:     { label: "Pago",     color: "#1D9E75", bg: "rgba(29,158,117,0.10)",  border: "rgba(29,158,117,0.22)" },
-  atraso:   { label: "Em atraso",color: "#DC2626", bg: "rgba(220,38,38,0.10)",   border: "rgba(220,38,38,0.22)"  },
-  pendente: { label: "Pendente", color: "#CA8A04", bg: "rgba(202,138,4,0.10)",   border: "rgba(202,138,4,0.22)"  },
+  pago:     { label: "Pago",      color: "#1D9E75", bg: "rgba(29,158,117,0.10)",  border: "rgba(29,158,117,0.22)" },
+  atraso:   { label: "Em atraso", color: "#DC2626", bg: "rgba(220,38,38,0.10)",   border: "rgba(220,38,38,0.22)"  },
+  pendente: { label: "Pendente",  color: "#CA8A04", bg: "rgba(202,138,4,0.10)",   border: "rgba(202,138,4,0.22)"  },
 };
 
-/* ─── YesNo Toggle ─── */
+/* ─── YesNoToggle ─── */
 function YesNoToggle({
   value,
   onChange,
@@ -176,7 +74,6 @@ function YesNoToggle({
         const activeBg = reverseColors
           ? isYes ? "rgba(220,38,38,0.12)" : "rgba(29,158,117,0.10)"
           : isYes ? "rgba(29,158,117,0.10)" : "rgba(220,38,38,0.12)";
-
         return (
           <button
             key={String(v)}
@@ -195,7 +92,7 @@ function YesNoToggle({
   );
 }
 
-/* ─── Modal Registrar Consulta ─── */
+/* ─── Modal: Registrar Consulta ─── */
 function RegistrarConsultaModal({
   pacienteId,
   onClose,
@@ -204,35 +101,38 @@ function RegistrarConsultaModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const { data: dentistas = [] } = useQuery({ queryKey: ["dentistas"], queryFn: fetchDentistas });
+  const { data: dentistas = [] } = useQuery({
+    queryKey: ["dentistas"],
+    queryFn: fetchDentistas,
+  });
+
   const [form, setForm] = useState({
-    date: new Date().toISOString().split("T")[0],
-    dentistId: "",
-    queixa: "",
-    exame: "",
-    diagnostico: "",
-    tratamento: "",
-    prescricao: "",
-    proximoPasso: "",
-    observacoes: "",
-    procedimento: "Consulta",
+    data_consulta:        new Date().toISOString().split("T")[0],
+    dentista_nome:        "",
+    tipo_consulta:        "Consulta",
+    queixa_principal:     "",
+    exame_clinico:        "",
+    diagnostico:          "",
+    tratamento_realizado: "",
+    prescricao:           "",
+    proximo_passo:        "",
+    observacoes:          "",
   });
 
   const saveMut = useMutation({
     mutationFn: () =>
       createConsulta({
         paciente_id:          pacienteId,
-        dentista_id:          form.dentistId || null,
-        data:                 form.date,
-        queixa:               form.queixa || null,
-        exame_clinico:        form.exame || null,
-        diagnostico:          form.diagnostico || null,
-        tratamento_realizado: form.tratamento || null,
-        prescricao:           form.prescricao || null,
-        proximo_passo:        form.proximoPasso || null,
-        observacoes:          form.observacoes || null,
-        procedimento:         form.procedimento || null,
-        proc_color:           "#5B8DEF",
+        dentista_nome:        form.dentista_nome        || null,
+        data_consulta:        form.data_consulta,
+        tipo_consulta:        form.tipo_consulta        || null,
+        queixa_principal:     form.queixa_principal     || null,
+        exame_clinico:        form.exame_clinico        || null,
+        diagnostico:          form.diagnostico          || null,
+        tratamento_realizado: form.tratamento_realizado || null,
+        prescricao:           form.prescricao           || null,
+        proximo_passo:        form.proximo_passo        || null,
+        observacoes:          form.observacoes          || null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["consultas", pacienteId] });
@@ -241,14 +141,6 @@ function RegistrarConsultaModal({
     },
     onError: (e: Error) => toast.error(`Erro ao registrar: ${e.message}`),
   });
-
-  function field(key: keyof typeof form) {
-    return {
-      value: form[key],
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-        setForm(f => ({ ...f, [key]: e.target.value })),
-    };
-  }
 
   const inputCls =
     "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 bg-[#0C0F1A] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/38 transition-colors resize-none";
@@ -281,44 +173,62 @@ function RegistrarConsultaModal({
           </button>
         </div>
 
-        {/* Scrollable body */}
+        {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Data</label>
-              <input type="date" {...field("date")} className={inputCls} />
+              <input
+                type="date"
+                value={form.data_consulta}
+                onChange={e => setForm(f => ({ ...f, data_consulta: e.target.value }))}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">Dentista</label>
               <select
-                value={form.dentistId}
-                onChange={e => setForm(f => ({ ...f, dentistId: e.target.value }))}
+                value={form.dentista_nome}
+                onChange={e => setForm(f => ({ ...f, dentista_nome: e.target.value }))}
                 className={inputCls}
               >
                 <option value="">Selecione o dentista</option>
                 {dentistas.map(d => (
-                  <option key={d.id} value={d.id}>{d.nome}</option>
+                  <option key={d.id} value={d.nome}>{d.nome}</option>
                 ))}
               </select>
             </div>
           </div>
 
-          {[
-            { key: "queixa" as const,      label: "Queixa principal",     rows: 2, placeholder: "Descreva a queixa do paciente…" },
-            { key: "exame" as const,       label: "Exame clínico",        rows: 2, placeholder: "Descreva os achados do exame…" },
-            { key: "diagnostico" as const, label: "Diagnóstico",          rows: 2, placeholder: "Diagnóstico clínico…" },
-            { key: "tratamento" as const,  label: "Tratamento realizado", rows: 2, placeholder: "Descreva o tratamento executado…" },
-            { key: "prescricao" as const,  label: "Prescrição",           rows: 2, placeholder: "Medicamentos prescritos…" },
-            { key: "proximoPasso" as const,label: "Próximo passo",        rows: 1, placeholder: "Ex: Retorno em 7 dias para reavaliação" },
-            { key: "observacoes" as const, label: "Observações",          rows: 2, placeholder: "Observações gerais…" },
-          ].map(({ key, label, rows, placeholder }) => (
+          <div>
+            <label className="text-xs text-white/40 mb-1.5 block">Tipo de consulta</label>
+            <select
+              value={form.tipo_consulta}
+              onChange={e => setForm(f => ({ ...f, tipo_consulta: e.target.value }))}
+              className={inputCls}
+            >
+              {["Avaliação", "Consulta", "Limpeza", "Extração", "Restauração", "Canal", "Implante", "Ortodontia", "Outros"].map(t => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {([
+            { key: "queixa_principal"     as const, label: "Queixa principal",     rows: 2, placeholder: "Descreva a queixa do paciente…"      },
+            { key: "exame_clinico"        as const, label: "Exame clínico",        rows: 2, placeholder: "Descreva os achados do exame…"        },
+            { key: "diagnostico"          as const, label: "Diagnóstico",          rows: 2, placeholder: "Diagnóstico clínico…"                 },
+            { key: "tratamento_realizado" as const, label: "Tratamento realizado", rows: 2, placeholder: "Descreva o tratamento executado…"     },
+            { key: "prescricao"           as const, label: "Prescrição",           rows: 2, placeholder: "Medicamentos prescritos…"             },
+            { key: "proximo_passo"        as const, label: "Próximo passo",        rows: 1, placeholder: "Ex: Retorno em 7 dias para reavaliação" },
+            { key: "observacoes"          as const, label: "Observações",          rows: 2, placeholder: "Observações gerais…"                  },
+          ] as const).map(({ key, label, rows, placeholder }) => (
             <div key={key}>
               <label className="text-xs text-white/40 mb-1.5 block">{label}</label>
               <textarea
                 rows={rows}
                 placeholder={placeholder}
-                {...field(key)}
+                value={form[key]}
+                onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                 className={inputCls}
               />
             </div>
@@ -350,23 +260,445 @@ function RegistrarConsultaModal({
   );
 }
 
-/* ─── Tab: Dados Pessoais ─── */
-function DadosPessoaisTab() {
+/* ─── Modal: Novo Tratamento ─── */
+function NovoTratamentoModal({
+  pacienteId,
+  onClose,
+}: {
+  pacienteId: string;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
   const [form, setForm] = useState({
-    name:     PATIENT_DATA.name,
-    cpf:      PATIENT_DATA.cpf,
-    birthdate: PATIENT_DATA.birthdate,
-    phone:    PATIENT_DATA.phone,
-    email:    PATIENT_DATA.email,
-    rua:      PATIENT_DATA.address.rua,
-    bairro:   PATIENT_DATA.address.bairro,
-    cidade:   PATIENT_DATA.address.cidade,
-    estado:   PATIENT_DATA.address.estado,
-    cep:      PATIENT_DATA.address.cep,
-    referral: PATIENT_DATA.referral,
-    dentist:  PATIENT_DATA.dentist,
+    descricao:             "",
+    valor_total:           "",
+    num_parcelas:          "1",
+    data_primeira_parcela: new Date().toISOString().split("T")[0],
   });
-  const [saved, setSaved] = useState(false);
+
+  const total       = parseFloat(form.valor_total) || 0;
+  const numParcelas = Math.max(1, parseInt(form.num_parcelas) || 1);
+  const valorParcela = total / numParcelas;
+
+  const parcelasPreview = Array.from({ length: numParcelas }, (_, i) => {
+    const d = new Date(form.data_primeira_parcela + "T12:00:00");
+    d.setMonth(d.getMonth() + i);
+    return {
+      num:        i + 1,
+      valor:      valorParcela,
+      vencimento: d.toISOString().split("T")[0],
+    };
+  });
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const financeiro = await createFinanceiroPaciente({
+        paciente_id:           pacienteId,
+        descricao:             form.descricao,
+        valor_total:           total,
+        num_parcelas:          numParcelas,
+        data_primeira_parcela: form.data_primeira_parcela,
+        valor_pago:            0,
+      });
+
+      const parcelasPayload = parcelasPreview.map(p => ({
+        financeiro_paciente_id: financeiro.id,
+        paciente_id:            pacienteId,
+        num_parcela:            p.num,
+        valor:                  p.valor,
+        vencimento:             p.vencimento,
+        status:                 "pendente" as const,
+        data_pagamento:         null,
+        forma_pagamento:        null,
+        valor_pago:             null,
+      }));
+
+      await createParcelas(parcelasPayload);
+      return financeiro;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["financeiro", pacienteId] });
+      qc.invalidateQueries({ queryKey: ["parcelas",   pacienteId] });
+      toast.success("Tratamento registrado com sucesso!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro ao salvar: ${e.message}`),
+  });
+
+  const inputCls =
+    "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 bg-[#0C0F1A] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/38 transition-colors";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)" }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden"
+        style={{ background: "#131726", maxHeight: "90vh" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] flex-none">
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(29,158,117,0.12)" }}
+            >
+              <Banknote size={16} className="text-[#1D9E75]" />
+            </div>
+            <h2 className="text-white font-bold text-base">Registrar Tratamento</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/40 hover:text-white transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          <div>
+            <label className="text-xs text-white/40 mb-1.5 block">Descrição do tratamento</label>
+            <input
+              value={form.descricao}
+              onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))}
+              placeholder="Ex: Implante dente 36…"
+              className={inputCls}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-white/40 mb-1.5 block">Valor total (R$)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.valor_total}
+                onChange={e => setForm(f => ({ ...f, valor_total: e.target.value }))}
+                placeholder="0,00"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1.5 block">Número de parcelas</label>
+              <select
+                value={form.num_parcelas}
+                onChange={e => setForm(f => ({ ...f, num_parcelas: e.target.value }))}
+                className={inputCls}
+              >
+                {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
+                  <option key={n} value={n}>{n}×</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-white/40 mb-1.5 block">Data da primeira parcela</label>
+            <input
+              type="date"
+              value={form.data_primeira_parcela}
+              onChange={e => setForm(f => ({ ...f, data_primeira_parcela: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+
+          {total > 0 && (
+            <div
+              className="rounded-xl border border-white/[0.06] overflow-hidden"
+              style={{ background: "#0C0F1A" }}
+            >
+              <p className="text-xs text-white/40 px-4 py-2.5 border-b border-white/[0.06]">
+                Prévia: {numParcelas}× de {fmtBRL(valorParcela)}
+              </p>
+              <div className="max-h-40 overflow-y-auto divide-y divide-white/[0.04]">
+                {parcelasPreview.map(p => (
+                  <div key={p.num} className="flex items-center justify-between px-4 py-2">
+                    <span className="text-xs text-white/50">Parcela {p.num}</span>
+                    <span className="text-xs text-white/70">{fmtBRL(p.valor)}</span>
+                    <span className="text-xs text-white/40">
+                      {new Date(p.vencimento + "T12:00:00").toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06] flex-none">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm text-white/55 border border-white/[0.08] hover:border-white/[0.18] transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => saveMut.mutate()}
+            disabled={saveMut.isPending || !form.descricao.trim() || total <= 0}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
+            style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.22)" }}
+          >
+            {saveMut.isPending
+              ? <LoaderCircle size={14} className="animate-spin" />
+              : <Save size={14} />}
+            Salvar tratamento
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Modal: Registrar Pagamento ─── */
+function RegistrarPagamentoModal({
+  pacienteId,
+  parcelas,
+  onClose,
+}: {
+  pacienteId: string;
+  parcelas: ParcelaRow[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const pendentes = parcelas.filter(p => p.status !== "pago");
+
+  const [selectedId, setSelectedId] = useState(pendentes[0]?.id ?? "");
+  const [form, setForm] = useState({
+    valor_pago:       String(pendentes[0]?.valor ?? ""),
+    data_pagamento:   new Date().toISOString().split("T")[0],
+    forma_pagamento:  "PIX",
+  });
+
+  // Sync valor when parcela selection changes
+  useEffect(() => {
+    const p = parcelas.find(p => p.id === selectedId);
+    if (p) setForm(f => ({ ...f, valor_pago: String(p.valor) }));
+  }, [selectedId, parcelas]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      updateParcela(selectedId, {
+        status:          "pago",
+        data_pagamento:  form.data_pagamento,
+        forma_pagamento: form.forma_pagamento,
+        valor_pago:      parseFloat(form.valor_pago) || 0,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["parcelas",   pacienteId] });
+      qc.invalidateQueries({ queryKey: ["financeiro", pacienteId] });
+      toast.success("Pagamento registrado!");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(`Erro: ${e.message}`),
+  });
+
+  const inputCls =
+    "w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/20 bg-[#0C0F1A] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/38 transition-colors";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)" }}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden"
+        style={{ background: "#131726" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(29,158,117,0.12)" }}
+            >
+              <CreditCard size={16} className="text-[#1D9E75]" />
+            </div>
+            <h2 className="text-white font-bold text-base">Registrar Pagamento</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/40 hover:text-white transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4 space-y-4">
+          {pendentes.length === 0 ? (
+            <div className="py-6 text-center">
+              <CheckCircle2 size={28} className="mx-auto mb-2 text-[#1D9E75]/60" />
+              <p className="text-sm text-white/50">Todas as parcelas já foram pagas.</p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">Parcela</label>
+                <select
+                  value={selectedId}
+                  onChange={e => setSelectedId(e.target.value)}
+                  className={inputCls}
+                >
+                  {pendentes.map(p => (
+                    <option key={p.id} value={p.id}>
+                      Parcela {p.num_parcela} — {fmtBRL(p.valor)} — venc.{" "}
+                      {new Date(p.vencimento + "T12:00:00").toLocaleDateString("pt-BR")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">Valor pago (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.valor_pago}
+                  onChange={e => setForm(f => ({ ...f, valor_pago: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">Data do pagamento</label>
+                <input
+                  type="date"
+                  value={form.data_pagamento}
+                  onChange={e => setForm(f => ({ ...f, data_pagamento: e.target.value }))}
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-white/40 mb-1.5 block">Forma de pagamento</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {["Dinheiro", "PIX", "Cartão", "Boleto"].map(forma => (
+                    <button
+                      key={forma}
+                      onClick={() => setForm(f => ({ ...f, forma_pagamento: forma }))}
+                      className="py-2 rounded-lg text-xs font-semibold transition-all"
+                      style={{
+                        background: form.forma_pagamento === forma
+                          ? "rgba(29,158,117,0.15)"
+                          : "rgba(255,255,255,0.04)",
+                        color: form.forma_pagamento === forma
+                          ? "#1D9E75"
+                          : "rgba(255,255,255,0.45)",
+                        border: form.forma_pagamento === forma
+                          ? "1px solid rgba(29,158,117,0.35)"
+                          : "1px solid rgba(255,255,255,0.07)",
+                      }}
+                    >
+                      {forma}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm text-white/55 border border-white/[0.08] hover:border-white/[0.18] transition-all"
+          >
+            Cancelar
+          </button>
+          {pendentes.length > 0 && (
+            <button
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending || !selectedId}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
+              style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.22)" }}
+            >
+              {saveMut.isPending
+                ? <LoaderCircle size={14} className="animate-spin" />
+                : <CheckCircle2 size={14} />}
+              Confirmar pagamento
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tab: Dados Pessoais ─── */
+function DadosPessoaisTab({
+  pacienteId,
+  dbPaciente,
+  dentistas,
+}: {
+  pacienteId: string;
+  dbPaciente: PacienteRow | undefined;
+  dentistas: DentistaRow[];
+}) {
+  const qc = useQueryClient();
+
+  const [form, setForm] = useState({
+    nome:                 dbPaciente?.nome                ?? "",
+    cpf:                  dbPaciente?.cpf                 ?? "",
+    data_nascimento:      dbPaciente?.data_nascimento      ?? "",
+    telefone:             dbPaciente?.telefone             ?? "",
+    email:                dbPaciente?.email               ?? "",
+    rua:                  dbPaciente?.endereco_rua         ?? "",
+    bairro:               dbPaciente?.endereco_bairro      ?? "",
+    cidade:               dbPaciente?.endereco_cidade      ?? "",
+    estado:               dbPaciente?.endereco_estado      ?? "",
+    cep:                  dbPaciente?.endereco_cep         ?? "",
+    como_conheceu:        dbPaciente?.como_conheceu        ?? "",
+    dentista_responsavel: dbPaciente?.dentista_responsavel ?? "",
+  });
+
+  // Hydrate when DB data loads
+  useEffect(() => {
+    if (dbPaciente) {
+      setForm({
+        nome:                 dbPaciente.nome                ?? "",
+        cpf:                  dbPaciente.cpf                 ?? "",
+        data_nascimento:      dbPaciente.data_nascimento      ?? "",
+        telefone:             dbPaciente.telefone             ?? "",
+        email:                dbPaciente.email               ?? "",
+        rua:                  dbPaciente.endereco_rua         ?? "",
+        bairro:               dbPaciente.endereco_bairro      ?? "",
+        cidade:               dbPaciente.endereco_cidade      ?? "",
+        estado:               dbPaciente.endereco_estado      ?? "",
+        cep:                  dbPaciente.endereco_cep         ?? "",
+        como_conheceu:        dbPaciente.como_conheceu        ?? "",
+        dentista_responsavel: dbPaciente.dentista_responsavel ?? "",
+      });
+    }
+  }, [dbPaciente]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      updatePaciente(pacienteId, {
+        nome:                 form.nome,
+        cpf:                  form.cpf               || null,
+        data_nascimento:      form.data_nascimento   || null,
+        telefone:             form.telefone          || null,
+        email:                form.email             || null,
+        endereco_rua:         form.rua               || null,
+        endereco_bairro:      form.bairro            || null,
+        endereco_cidade:      form.cidade            || null,
+        endereco_estado:      form.estado            || null,
+        endereco_cep:         form.cep               || null,
+        como_conheceu:        form.como_conheceu     || null,
+        dentista_responsavel: form.dentista_responsavel || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["paciente", pacienteId] });
+      toast.success("Dados salvos com sucesso!");
+    },
+    onError: (e: Error) => toast.error(`Erro ao salvar: ${e.message}`),
+  });
 
   const inputCls =
     "w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/20 bg-[#0C0F1A] border border-white/[0.08] focus:outline-none focus:border-[#1D9E75]/38 transition-colors";
@@ -377,11 +709,6 @@ function DadosPessoaisTab() {
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
         setForm(f => ({ ...f, [key]: e.target.value })),
     };
-  }
-
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
   }
 
   return (
@@ -399,7 +726,7 @@ function DadosPessoaisTab() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-white/38 mb-1.5 block">Nome completo</label>
-            <input {...field("name")} className={inputCls} />
+            <input {...field("nome")} className={inputCls} />
           </div>
           <div>
             <label className="text-xs text-white/38 mb-1.5 block">CPF</label>
@@ -407,11 +734,11 @@ function DadosPessoaisTab() {
           </div>
           <div>
             <label className="text-xs text-white/38 mb-1.5 block">Data de nascimento</label>
-            <input {...field("birthdate")} className={inputCls} />
+            <input type="date" {...field("data_nascimento")} className={inputCls} />
           </div>
           <div>
             <label className="text-xs text-white/38 mb-1.5 block">Telefone</label>
-            <input {...field("phone")} className={inputCls} />
+            <input {...field("telefone")} className={inputCls} />
           </div>
           <div className="col-span-2">
             <label className="text-xs text-white/38 mb-1.5 block">E-mail</label>
@@ -465,15 +792,17 @@ function DadosPessoaisTab() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-white/38 mb-1.5 block">Dentista responsável</label>
-            <select {...field("dentist")} className={inputCls}>
-              <option>Dra. Ana Paula</option>
-              <option>Dr. Bruno</option>
-              <option>Dra. Carla</option>
+            <select {...field("dentista_responsavel")} className={inputCls}>
+              <option value="">Selecione o dentista</option>
+              {dentistas.map(d => (
+                <option key={d.id} value={d.nome}>{d.nome}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="text-xs text-white/38 mb-1.5 block">Como nos conheceu</label>
-            <select {...field("referral")} className={inputCls}>
+            <select {...field("como_conheceu")} className={inputCls}>
+              <option value="">Selecione</option>
               {["Indicação", "Instagram", "Google", "Outros"].map(r => (
                 <option key={r}>{r}</option>
               ))}
@@ -485,26 +814,29 @@ function DadosPessoaisTab() {
       {/* Save */}
       <div className="flex items-center gap-3">
         <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
+          onClick={() => saveMut.mutate()}
+          disabled={saveMut.isPending}
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
           style={{ background: "#1D9E75", boxShadow: "0 0 16px rgba(29,158,117,0.20)" }}
         >
-          <Save size={14} />
+          {saveMut.isPending
+            ? <LoaderCircle size={14} className="animate-spin" />
+            : <Save size={14} />}
           Salvar alterações
         </button>
-        {saved && (
-          <span className="text-sm text-[#1D9E75] flex items-center gap-1.5">
-            <CheckCircle2 size={14} />
-            Alterações salvas!
-          </span>
-        )}
       </div>
     </div>
   );
 }
 
 /* ─── Tab: Anamnese ─── */
-function AnamneseTab({ pacienteId }: { pacienteId: string }) {
+function AnamneseTab({
+  pacienteId,
+  sexo,
+}: {
+  pacienteId: string;
+  sexo: string;
+}) {
   const qc = useQueryClient();
 
   const { data: dbAnamnese, isLoading } = useQuery({
@@ -514,34 +846,34 @@ function AnamneseTab({ pacienteId }: { pacienteId: string }) {
   });
 
   const [form, setForm] = useState({
-    pressao:     ANAMNESE_DATA.pressao,
-    diabetico:   ANAMNESE_DATA.diabetico,
-    cardiopatia: ANAMNESE_DATA.cardiopatia,
-    hipertensao: ANAMNESE_DATA.hipertensao,
-    fumante:     ANAMNESE_DATA.fumante,
-    gravida:     ANAMNESE_DATA.gravida,
-    alergias:    ANAMNESE_DATA.alergias,
-    medicamentos: ANAMNESE_DATA.medicamentos,
-    cirurgias:   ANAMNESE_DATA.cirurgias,
-    observacoes: ANAMNESE_DATA.observacoes,
-    lastUpdated: ANAMNESE_DATA.lastUpdated,
+    pressao:      "",
+    diabetico:    false,
+    cardiopatia:  false,
+    hipertensao:  false,
+    fumante:      false,
+    gravida:      false,
+    alergias:     "",
+    medicamentos: "",
+    cirurgias:    "",
+    observacoes:  "",
+    lastUpdated:  "—",
   });
 
   // Hydrate form from DB when data arrives
   useEffect(() => {
     if (dbAnamnese) {
       setForm({
-        pressao:     dbAnamnese.pressao_arterial ?? ANAMNESE_DATA.pressao,
-        diabetico:   dbAnamnese.diabetico,
-        cardiopatia: dbAnamnese.cardiopatia,
-        hipertensao: dbAnamnese.hipertensao,
-        fumante:     dbAnamnese.fumante,
-        gravida:     dbAnamnese.gravida,
-        alergias:    dbAnamnese.alergias    ?? "",
+        pressao:      dbAnamnese.pressao_arterial ?? "",
+        diabetico:    dbAnamnese.diabetico,
+        cardiopatia:  dbAnamnese.cardiopatia,
+        hipertensao:  dbAnamnese.hipertensao,
+        fumante:      dbAnamnese.fumante,
+        gravida:      dbAnamnese.gravida,
+        alergias:     dbAnamnese.alergias     ?? "",
         medicamentos: dbAnamnese.medicamentos ?? "",
-        cirurgias:   dbAnamnese.cirurgias   ?? "",
-        observacoes: dbAnamnese.observacoes ?? "",
-        lastUpdated: new Date(dbAnamnese.updated_at).toLocaleDateString("pt-BR"),
+        cirurgias:    dbAnamnese.cirurgias    ?? "",
+        observacoes:  dbAnamnese.observacoes  ?? "",
+        lastUpdated:  new Date(dbAnamnese.updated_at).toLocaleDateString("pt-BR"),
       });
     }
   }, [dbAnamnese]);
@@ -550,7 +882,7 @@ function AnamneseTab({ pacienteId }: { pacienteId: string }) {
     mutationFn: () =>
       upsertAnamnese({
         paciente_id:      pacienteId,
-        pressao_arterial: form.pressao    || null,
+        pressao_arterial: form.pressao     || null,
         diabetico:        form.diabetico,
         cardiopatia:      form.cardiopatia,
         hipertensao:      form.hipertensao,
@@ -577,10 +909,10 @@ function AnamneseTab({ pacienteId }: { pacienteId: string }) {
     Icon: React.ElementType;
     iconColor: string;
   }[] = [
-    { key: "diabetico",    label: "Diabético(a)",         Icon: Activity,   iconColor: "#CA8A04" },
-    { key: "cardiopatia",  label: "Cardiopatia",           Icon: Heart,      iconColor: "#DC2626" },
-    { key: "hipertensao",  label: "Hipertensão",           Icon: HeartPulse, iconColor: "#DC2626" },
-    { key: "fumante",      label: "Fumante",               Icon: Cigarette,  iconColor: "#9B6DFF" },
+    { key: "diabetico",   label: "Diabético(a)", Icon: Activity,   iconColor: "#CA8A04" },
+    { key: "cardiopatia", label: "Cardiopatia",  Icon: Heart,      iconColor: "#DC2626" },
+    { key: "hipertensao", label: "Hipertensão",  Icon: HeartPulse, iconColor: "#DC2626" },
+    { key: "fumante",     label: "Fumante",       Icon: Cigarette,  iconColor: "#9B6DFF" },
   ];
 
   if (isLoading) {
@@ -620,7 +952,10 @@ function AnamneseTab({ pacienteId }: { pacienteId: string }) {
         {/* Yes/No toggles */}
         <div className="space-y-3">
           {healthItems.map(({ key, label, Icon, iconColor }) => (
-            <div key={key} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+            <div
+              key={key}
+              className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0"
+            >
               <div className="flex items-center gap-2.5">
                 <div
                   className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -646,7 +981,7 @@ function AnamneseTab({ pacienteId }: { pacienteId: string }) {
           ))}
 
           {/* Grávida — only for female patients */}
-          {PATIENT_DATA.sexo === "F" && (
+          {sexo === "F" && (
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-2.5">
                 <div
@@ -759,26 +1094,6 @@ function HistoricoTab({ pacienteId }: { pacienteId: string }) {
     enabled:  !!pacienteId,
   });
 
-  // Map DB rows → ConsultaEntry; fall back to static demo if DB is empty
-  const entries: ConsultaEntry[] = dbConsultas.length > 0
-    ? dbConsultas.map(c => ({
-        id:           c.id,
-        date:         c.data
-          ? new Date(c.data + "T12:00:00").toLocaleDateString("pt-BR")
-          : "—",
-        dentist:      c.dentistas?.nome ?? "—",
-        queixa:       c.queixa              ?? "",
-        exame:        c.exame_clinico        ?? "",
-        diagnostico:  c.diagnostico          ?? "",
-        tratamento:   c.tratamento_realizado ?? "",
-        prescricao:   c.prescricao           ?? "",
-        proximoPasso: c.proximo_passo        ?? "",
-        observacoes:  c.observacoes          ?? "",
-        procedure:    c.procedimento         ?? "Consulta",
-        procColor:    c.proc_color           ?? "#5B8DEF",
-      }))
-    : HISTORICO;
-
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -795,7 +1110,7 @@ function HistoricoTab({ pacienteId }: { pacienteId: string }) {
       {/* Header actions */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-white/40">
-          {entries.length} consulta{entries.length !== 1 ? "s" : ""} registrada{entries.length !== 1 ? "s" : ""}
+          {dbConsultas.length} consulta{dbConsultas.length !== 1 ? "s" : ""} registrada{dbConsultas.length !== 1 ? "s" : ""}
         </p>
         <button
           onClick={() => setShowModal(true)}
@@ -807,111 +1122,134 @@ function HistoricoTab({ pacienteId }: { pacienteId: string }) {
         </button>
       </div>
 
-      {/* Timeline */}
-      <div className="relative">
-        {/* Vertical line */}
-        <div
-          className="absolute left-5 top-0 bottom-0 w-px"
-          style={{ background: "rgba(255,255,255,0.06)" }}
-        />
+      {/* Empty state */}
+      {dbConsultas.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(29,158,117,0.08)", border: "1px solid rgba(29,158,117,0.15)" }}
+          >
+            <ClipboardList size={24} className="text-[#1D9E75]/50" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white/50">Nenhuma consulta registrada</p>
+            <p className="text-xs text-white/25 mt-1">Clique em &ldquo;Registrar consulta&rdquo; para começar</p>
+          </div>
+        </div>
+      ) : (
+        /* Timeline */
+        <div className="relative">
+          {/* Vertical line */}
+          <div
+            className="absolute left-5 top-0 bottom-0 w-px"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          />
 
-        <div className="space-y-4">
-          {entries.map((entry, i) => (
-            <div key={entry.id} className="flex gap-4">
-              {/* Timeline dot */}
-              <div className="flex-none flex flex-col items-center" style={{ width: 40 }}>
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center z-10 flex-shrink-0"
-                  style={{
-                    background: `${entry.procColor}18`,
-                    border: `2px solid ${entry.procColor}55`,
-                  }}
-                >
-                  <Stethoscope size={14} style={{ color: entry.procColor }} />
-                </div>
-              </div>
+          <div className="space-y-4">
+            {dbConsultas.map(c => {
+              const procColor = "#5B8DEF";
+              const dateStr = c.data_consulta
+                ? new Date(c.data_consulta + "T12:00:00").toLocaleDateString("pt-BR")
+                : "—";
 
-              {/* Card */}
-              <div
-                className="flex-1 rounded-2xl border border-white/[0.06] overflow-hidden mb-2"
-                style={{ background: "#131726" }}
-              >
-                {/* Card header */}
-                <div
-                  className="px-5 py-3 border-b border-white/[0.05] flex items-center justify-between"
-                  style={{ borderLeft: `3px solid ${entry.procColor}` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded"
+              return (
+                <div key={c.id} className="flex gap-4">
+                  {/* Timeline dot */}
+                  <div className="flex-none flex flex-col items-center" style={{ width: 40 }}>
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center z-10 flex-shrink-0"
                       style={{
-                        background: `${entry.procColor}18`,
-                        color: entry.procColor,
+                        background: `${procColor}18`,
+                        border: `2px solid ${procColor}55`,
                       }}
                     >
-                      {entry.procedure}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-white/40">
-                      <Calendar size={11} />
-                      <span className="text-xs">{entry.date}</span>
+                      <Stethoscope size={14} style={{ color: procColor }} />
                     </div>
-                    <div className="flex items-center gap-1.5 text-white/40">
-                      <User size={11} />
-                      <span className="text-xs">{entry.dentist}</span>
+                  </div>
+
+                  {/* Card */}
+                  <div
+                    className="flex-1 rounded-2xl border border-white/[0.06] overflow-hidden mb-2"
+                    style={{ background: "#131726" }}
+                  >
+                    {/* Card header */}
+                    <div
+                      className="px-5 py-3 border-b border-white/[0.05] flex items-center gap-3"
+                      style={{ borderLeft: `3px solid ${procColor}` }}
+                    >
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded"
+                        style={{ background: `${procColor}18`, color: procColor }}
+                      >
+                        {c.tipo_consulta ?? "Consulta"}
+                      </span>
+                      <div className="flex items-center gap-1.5 text-white/40">
+                        <Calendar size={11} />
+                        <span className="text-xs">{dateStr}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-white/40">
+                        <User size={11} />
+                        <span className="text-xs">{c.dentista_nome ?? "—"}</span>
+                      </div>
+                    </div>
+
+                    {/* Card body */}
+                    <div className="px-5 py-4 space-y-3">
+                      {[
+                        { label: "Queixa principal",     value: c.queixa_principal,    Icon: FileText     },
+                        { label: "Diagnóstico",           value: c.diagnostico,         Icon: ClipboardList },
+                        { label: "Tratamento realizado",  value: c.tratamento_realizado, Icon: Stethoscope  },
+                        { label: "Prescrição",            value: c.prescricao,          Icon: Pill         },
+                        { label: "Próximo passo",         value: c.proximo_passo,       Icon: ArrowRight   },
+                      ].filter(r => r.value).map(({ label, value, Icon }) => (
+                        <div key={label} className="flex gap-3">
+                          <div className="flex-none w-4 mt-0.5">
+                            <Icon size={12} className="text-white/25" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-white/32 uppercase tracking-wider mb-0.5">{label}</p>
+                            <p
+                              className="text-sm text-white/80 leading-relaxed"
+                              style={{ whiteSpace: "pre-line" }}
+                            >
+                              {value}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+
+                      {c.observacoes && (
+                        <div
+                          className="flex gap-2 rounded-lg px-3 py-2 mt-1"
+                          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}
+                        >
+                          <AlertCircle size={12} className="text-white/25 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-white/45 leading-relaxed">{c.observacoes}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+              );
+            })}
 
-                {/* Card body */}
-                <div className="px-5 py-4 space-y-3">
-                  {[
-                    { label: "Queixa principal",     value: entry.queixa,       Icon: FileText    },
-                    { label: "Diagnóstico",           value: entry.diagnostico,  Icon: ClipboardList },
-                    { label: "Tratamento realizado",  value: entry.tratamento,   Icon: Stethoscope },
-                    { label: "Prescrição",            value: entry.prescricao,   Icon: Pill        },
-                    { label: "Próximo passo",         value: entry.proximoPasso, Icon: ArrowRight  },
-                  ].filter(r => r.value).map(({ label, value, Icon }) => (
-                    <div key={label} className="flex gap-3">
-                      <div className="flex-none w-4 mt-0.5">
-                        <Icon size={12} className="text-white/25" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-white/32 uppercase tracking-wider mb-0.5">{label}</p>
-                        <p className="text-sm text-white/80 leading-relaxed" style={{ whiteSpace: "pre-line" }}>{value}</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  {entry.observacoes && (
-                    <div
-                      className="flex gap-2 rounded-lg px-3 py-2 mt-1"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}
-                    >
-                      <AlertCircle size={12} className="text-white/25 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-white/45 leading-relaxed">{entry.observacoes}</p>
-                    </div>
-                  )}
+            {/* End dot */}
+            <div className="flex gap-4">
+              <div className="flex-none" style={{ width: 40 }}>
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1.5px dashed rgba(255,255,255,0.10)" }}
+                >
+                  <Clock size={12} className="text-white/20" />
                 </div>
               </div>
-            </div>
-          ))}
-
-          {/* End dot */}
-          <div className="flex gap-4">
-            <div className="flex-none" style={{ width: 40 }}>
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1.5px dashed rgba(255,255,255,0.10)" }}
-              >
-                <Clock size={12} className="text-white/20" />
+              <div className="flex-1 flex items-center pb-2">
+                <p className="text-xs text-white/22">Início do histórico clínico</p>
               </div>
-            </div>
-            <div className="flex-1 flex items-center pb-2">
-              <p className="text-xs text-white/22">Início do histórico clínico</p>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {showModal && (
         <RegistrarConsultaModal pacienteId={pacienteId} onClose={() => setShowModal(false)} />
@@ -921,8 +1259,74 @@ function HistoricoTab({ pacienteId }: { pacienteId: string }) {
 }
 
 /* ─── Tab: Financeiro ─── */
-function FinanceiroTab() {
-  const paidPct = Math.round((PAID / TOTAL) * 100);
+function FinanceiroTab({ pacienteId }: { pacienteId: string }) {
+  const [showNovoTratamento, setShowNovoTratamento] = useState(false);
+  const [showPagamento,      setShowPagamento]      = useState(false);
+
+  const { data: tratamentos = [], isLoading: loadingTratamentos } = useQuery({
+    queryKey: ["financeiro", pacienteId],
+    queryFn:  () => fetchFinanceiroPaciente(pacienteId),
+    enabled:  !!pacienteId,
+  });
+
+  const { data: parcelas = [], isLoading: loadingParcelas } = useQuery({
+    queryKey: ["parcelas", pacienteId],
+    queryFn:  () => fetchParcelas(pacienteId),
+    enabled:  !!pacienteId,
+  });
+
+  const isLoading = loadingTratamentos || loadingParcelas;
+
+  // Computed totals
+  const total     = tratamentos.reduce((s, t) => s + t.valor_total, 0);
+  const paid      = parcelas.filter(p => p.status === "pago").reduce((s, p) => s + (p.valor_pago ?? p.valor), 0);
+  const remaining = Math.max(0, total - paid);
+  const paidPct   = total > 0 ? Math.round((paid / total) * 100) : 0;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map(i => (
+          <Skeleton key={i} className="h-32 rounded-2xl" style={{ background: "#131726" }} />
+        ))}
+      </div>
+    );
+  }
+
+  // Empty state
+  if (tratamentos.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowNovoTratamento(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
+            style={{ background: "#1D9E75", boxShadow: "0 0 14px rgba(29,158,117,0.20)" }}
+          >
+            <Plus size={14} />
+            Registrar tratamento
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(29,158,117,0.08)", border: "1px solid rgba(29,158,117,0.15)" }}
+          >
+            <Banknote size={24} className="text-[#1D9E75]/50" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white/50">Nenhum tratamento registrado</p>
+            <p className="text-xs text-white/25 mt-1">Clique em &ldquo;Registrar tratamento&rdquo; para adicionar</p>
+          </div>
+        </div>
+
+        {showNovoTratamento && (
+          <NovoTratamentoModal pacienteId={pacienteId} onClose={() => setShowNovoTratamento(false)} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -930,9 +1334,9 @@ function FinanceiroTab() {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "Valor total do tratamento", value: fmtBRL(TOTAL),     color: "white",    icon: Banknote },
-          { label: "Total pago",                value: fmtBRL(PAID),      color: "#1D9E75",  icon: CheckCircle2 },
-          { label: "Falta pagar",               value: fmtBRL(REMAINING), color: "#DC2626",  icon: AlertCircle },
+          { label: "Valor total do tratamento", value: fmtBRL(total),     color: "white",   icon: Banknote     },
+          { label: "Total pago",                value: fmtBRL(paid),      color: "#1D9E75", icon: CheckCircle2 },
+          { label: "Falta pagar",               value: fmtBRL(remaining), color: "#DC2626", icon: AlertCircle  },
         ].map(({ label, value, color, icon: Icon }) => (
           <div
             key={label}
@@ -948,7 +1352,7 @@ function FinanceiroTab() {
         ))}
       </div>
 
-      {/* Progress */}
+      {/* Progress bar */}
       <div
         className="rounded-2xl border border-white/[0.06] p-5"
         style={{ background: "#131726" }}
@@ -967,74 +1371,109 @@ function FinanceiroTab() {
           />
         </div>
         <div className="flex justify-between text-[10px] text-white/25 mt-1.5">
-          <span>{fmtBRL(PAID)} pagos</span>
-          <span>{fmtBRL(REMAINING)} restantes</span>
+          <span>{fmtBRL(paid)} pagos</span>
+          <span>{fmtBRL(remaining)} restantes</span>
         </div>
       </div>
 
-      {/* Parcelas */}
-      <div
-        className="rounded-2xl border border-white/[0.06] overflow-hidden"
-        style={{ background: "#131726" }}
-      >
-        <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CreditCard size={14} className="text-[#1D9E75]" />
-            <h3 className="text-sm font-semibold text-white">Parcelas</h3>
-          </div>
-          <span className="text-xs text-white/30">
-            {PARCELAS.filter(p => p.status === "pago").length} de {PARCELAS.length} pagas
-          </span>
-        </div>
+      {/* Parcelas por tratamento */}
+      {tratamentos.map(tratamento => {
+        const tParcelas    = parcelas.filter(p => p.financeiro_paciente_id === tratamento.id);
+        const pagasCont    = tParcelas.filter(p => p.status === "pago").length;
 
-        <div className="divide-y divide-white/[0.04]">
-          {PARCELAS.map(p => {
-            const cfg = PARC_CFG[p.status];
-            return (
-              <div key={p.num} className="px-5 py-3 flex items-center gap-4">
-                {/* Parcela num */}
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                  style={{
-                    background: `${cfg.color}18`,
-                    color: cfg.color,
-                    border: `1.5px solid ${cfg.color}35`,
-                  }}
-                >
-                  {p.num}
-                </div>
-
-                {/* Valor */}
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">{fmtBRL(p.valor)}</p>
-                  <p className="text-xs text-white/32">
-                    Vencimento: {p.vencimento}
-                    {p.pagamento && ` · Pago em: ${p.pagamento}`}
+        return (
+          <div
+            key={tratamento.id}
+            className="rounded-2xl border border-white/[0.06] overflow-hidden"
+            style={{ background: "#131726" }}
+          >
+            {/* Treatment header */}
+            <div className="px-5 py-4 border-b border-white/[0.05] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard size={14} className="text-[#1D9E75]" />
+                <div>
+                  <h3 className="text-sm font-semibold text-white">{tratamento.descricao}</h3>
+                  <p className="text-xs text-white/35">
+                    {fmtBRL(tratamento.valor_total)} · {tratamento.num_parcelas} parcelas
                   </p>
                 </div>
-
-                {/* Status */}
-                <span
-                  className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
-                  style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}
-                >
-                  {cfg.label}
-                </span>
               </div>
-            );
-          })}
-        </div>
+              <span className="text-xs text-white/30">
+                {pagasCont} de {tParcelas.length} pagas
+              </span>
+            </div>
 
-        <div className="px-5 py-4 border-t border-white/[0.05]">
-          <button
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
-            style={{ background: "#1D9E75", boxShadow: "0 0 14px rgba(29,158,117,0.18)" }}
-          >
-            <CreditCard size={14} />
-            Registrar pagamento
-          </button>
-        </div>
+            {/* Parcela rows */}
+            <div className="divide-y divide-white/[0.04]">
+              {tParcelas.map(p => {
+                const cfg = PARC_CFG[p.status as ParcStatus] ?? PARC_CFG.pendente;
+                const vencDate = new Date(p.vencimento + "T12:00:00").toLocaleDateString("pt-BR");
+                const pagDate  = p.data_pagamento
+                  ? new Date(p.data_pagamento + "T12:00:00").toLocaleDateString("pt-BR")
+                  : null;
+
+                return (
+                  <div key={p.id} className="px-5 py-3 flex items-center gap-4">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                      style={{
+                        background: `${cfg.color}18`,
+                        color: cfg.color,
+                        border: `1.5px solid ${cfg.color}35`,
+                      }}
+                    >
+                      {p.num_parcela}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-white">{fmtBRL(p.valor)}</p>
+                      <p className="text-xs text-white/32">
+                        Vencimento: {vencDate}
+                        {pagDate && ` · Pago em: ${pagDate}`}
+                      </p>
+                    </div>
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                      style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}
+                    >
+                      {cfg.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Action buttons */}
+      <div className="flex gap-3">
+        <button
+          onClick={() => setShowPagamento(true)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
+          style={{ background: "#1D9E75", boxShadow: "0 0 14px rgba(29,158,117,0.18)" }}
+        >
+          <CreditCard size={14} />
+          Registrar pagamento
+        </button>
+        <button
+          onClick={() => setShowNovoTratamento(true)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white/60 border border-white/[0.10] hover:text-white hover:border-white/[0.22] transition-all"
+        >
+          <Plus size={14} />
+          Novo tratamento
+        </button>
       </div>
+
+      {showNovoTratamento && (
+        <NovoTratamentoModal pacienteId={pacienteId} onClose={() => setShowNovoTratamento(false)} />
+      )}
+      {showPagamento && (
+        <RegistrarPagamentoModal
+          pacienteId={pacienteId}
+          parcelas={parcelas}
+          onClose={() => setShowPagamento(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1043,15 +1482,22 @@ function FinanceiroTab() {
 const TABS: TabType[] = ["Dados Pessoais", "Anamnese", "Histórico Clínico", "Financeiro"];
 
 const TAB_ICONS: Record<TabType, React.ElementType> = {
-  "Dados Pessoais":   User,
-  "Anamnese":         Heart,
-  "Histórico Clínico":ClipboardList,
-  "Financeiro":       Banknote,
+  "Dados Pessoais":    User,
+  "Anamnese":          Heart,
+  "Histórico Clínico": ClipboardList,
+  "Financeiro":        Banknote,
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  INADIMPLENTE: "#DC2626",
+  ATIVO:        "#1D9E75",
+  NOVO:         "#5B8DEF",
+  INATIVO:      "#6B7280",
 };
 
 export default function ProntuarioPage() {
-  const params   = useParams();
-  const id       = params.id as string;
+  const params     = useParams();
+  const id         = params.id as string;
   const [activeTab, setActiveTab] = useState<TabType>("Dados Pessoais");
 
   const { data: dbPaciente } = useQuery({
@@ -1060,50 +1506,18 @@ export default function ProntuarioPage() {
     enabled:  !!id,
   });
 
-  // Compute display patient — prefer DB data, fall back to demo PATIENT_DATA
-  const patient = dbPaciente
-    ? {
-        id:        dbPaciente.id,
-        name:      dbPaciente.nome,
-        cpf:       dbPaciente.cpf      ?? PATIENT_DATA.cpf,
-        birthdate: dbPaciente.data_nascimento ?? PATIENT_DATA.birthdate,
-        age: dbPaciente.data_nascimento
-          ? new Date().getFullYear() -
-            new Date(dbPaciente.data_nascimento).getFullYear()
-          : PATIENT_DATA.age,
-        phone:     dbPaciente.telefone  ?? PATIENT_DATA.phone,
-        email:     dbPaciente.email     ?? PATIENT_DATA.email,
-        sexo:      dbPaciente.sexo,
-        status:    dbPaciente.status    as typeof PATIENT_DATA.status,
-        treatment: dbPaciente.tratamento ?? PATIENT_DATA.treatment,
-        dentist:   PATIENT_DATA.dentist,
-        lastVisit: PATIENT_DATA.lastVisit,
-        address: {
-          rua:    dbPaciente.endereco_rua     ?? PATIENT_DATA.address.rua,
-          bairro: dbPaciente.endereco_bairro  ?? PATIENT_DATA.address.bairro,
-          cidade: dbPaciente.endereco_cidade  ?? PATIENT_DATA.address.cidade,
-          estado: dbPaciente.endereco_estado  ?? PATIENT_DATA.address.estado,
-          cep:    dbPaciente.endereco_cep     ?? PATIENT_DATA.address.cep,
-        },
-        referral: dbPaciente.como_conheceu ?? PATIENT_DATA.referral,
-      }
-    : PATIENT_DATA;
+  const { data: dentistas = [] } = useQuery({
+    queryKey: ["dentistas"],
+    queryFn:  fetchDentistas,
+  });
 
-  // Initials from name
-  const initials = patient.name
-    .split(" ")
-    .slice(0, 2)
-    .map(w => w[0])
-    .join("")
-    .toUpperCase();
-
-  const STATUS_COLOR: Record<string, string> = {
-    INADIMPLENTE: "#DC2626",
-    ATIVO:        "#1D9E75",
-    NOVO:         "#5B8DEF",
-    INATIVO:      "#6B7280",
-  };
-  const statusColor = STATUS_COLOR[patient.status] ?? "#6B7280";
+  const nome       = dbPaciente?.nome ?? "Carregando…";
+  const initials   = nome.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+  const age        = dbPaciente?.data_nascimento
+    ? new Date().getFullYear() - new Date(dbPaciente.data_nascimento).getFullYear()
+    : null;
+  const status     = dbPaciente?.status ?? "";
+  const statusColor = STATUS_COLOR[status] ?? "#6B7280";
 
   return (
     <div className="min-h-screen flex" style={{ background: "#0C0F1A" }}>
@@ -1116,7 +1530,6 @@ export default function ProntuarioPage() {
           className="flex-none border-b border-white/[0.06] px-6 py-3 flex items-center gap-4"
           style={{ background: "rgba(12,15,26,0.98)" }}
         >
-          {/* Back */}
           <Link
             href="/dashboard/pacientes"
             className="flex items-center gap-1.5 text-white/40 hover:text-white transition-colors text-sm"
@@ -1127,7 +1540,6 @@ export default function ProntuarioPage() {
 
           <span className="text-white/20">/</span>
 
-          {/* Patient info */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div
               className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
@@ -1137,43 +1549,50 @@ export default function ProntuarioPage() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-white font-bold text-base leading-tight truncate">
-                  {patient.name}
-                </h1>
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: `${statusColor}18`, color: statusColor }}
-                >
-                  {patient.status}
-                </span>
+                <h1 className="text-white font-bold text-base leading-tight truncate">{nome}</h1>
+                {status && (
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: `${statusColor}18`, color: statusColor }}
+                  >
+                    {status}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 mt-0.5">
-                <span className="text-xs text-white/35">{patient.age} anos</span>
-                <span className="text-xs text-white/20">·</span>
-                <span className="text-xs text-white/35 flex items-center gap-1">
-                  <Phone size={10} />
-                  {patient.phone}
-                </span>
-                <span className="text-xs text-white/20">·</span>
-                <span className="text-xs text-white/35 flex items-center gap-1">
-                  <Stethoscope size={10} />
-                  {patient.treatment}
-                </span>
-                <span className="text-xs text-white/20">·</span>
-                <span className="text-xs text-white/35">
-                  Última visita: {patient.lastVisit}
-                </span>
+                {age !== null && (
+                  <span className="text-xs text-white/35">{age} anos</span>
+                )}
+                {dbPaciente?.telefone && (
+                  <>
+                    <span className="text-xs text-white/20">·</span>
+                    <span className="text-xs text-white/35 flex items-center gap-1">
+                      <Phone size={10} />
+                      {dbPaciente.telefone}
+                    </span>
+                  </>
+                )}
+                {dbPaciente?.tratamento && (
+                  <>
+                    <span className="text-xs text-white/20">·</span>
+                    <span className="text-xs text-white/35 flex items-center gap-1">
+                      <Stethoscope size={10} />
+                      {dbPaciente.tratamento}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          {/* CPF chip */}
-          <div
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs text-white/35 border border-white/[0.06]"
-            style={{ background: "#131726" }}
-          >
-            CPF {patient.cpf}
-          </div>
+          {dbPaciente?.cpf && (
+            <div
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs text-white/35 border border-white/[0.06]"
+              style={{ background: "#131726" }}
+            >
+              CPF {dbPaciente.cpf}
+            </div>
+          )}
         </div>
 
         {/* ── Tab bar ── */}
@@ -1182,13 +1601,13 @@ export default function ProntuarioPage() {
           style={{ background: "rgba(12,15,26,0.95)" }}
         >
           {TABS.map(tab => {
-            const Icon = TAB_ICONS[tab];
+            const Icon   = TAB_ICONS[tab];
             const active = activeTab === tab;
             return (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-all relative"
+                className="flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-all"
                 style={{
                   borderColor: active ? "#1D9E75" : "transparent",
                   color:       active ? "#1D9E75" : "rgba(255,255,255,0.38)",
@@ -1203,10 +1622,18 @@ export default function ProntuarioPage() {
 
         {/* ── Tab content ── */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {activeTab === "Dados Pessoais"   && <DadosPessoaisTab />}
-          {activeTab === "Anamnese"          && <AnamneseTab pacienteId={id} />}
+          {activeTab === "Dados Pessoais"   && (
+            <DadosPessoaisTab
+              pacienteId={id}
+              dbPaciente={dbPaciente}
+              dentistas={dentistas}
+            />
+          )}
+          {activeTab === "Anamnese"          && (
+            <AnamneseTab pacienteId={id} sexo={dbPaciente?.sexo ?? "M"} />
+          )}
           {activeTab === "Histórico Clínico" && <HistoricoTab pacienteId={id} />}
-          {activeTab === "Financeiro"        && <FinanceiroTab />}
+          {activeTab === "Financeiro"        && <FinanceiroTab pacienteId={id} />}
         </div>
 
       </main>
