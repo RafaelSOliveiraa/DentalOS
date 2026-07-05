@@ -1122,8 +1122,8 @@ export default function AgendaPage() {
   /* Map DB agendamentos → local Appointment shape (day view) */
   const liveAppts: Appointment[] = dbAgendamentos.map(a => mapRowToAppt(a, dbDentistas));
 
-  /* Use live data if available, else fall back to static demo data */
-  const displayAppts = liveAppts.length > 0 ? liveAppts : APPOINTMENTS;
+  /* Use live data if available; show nothing while loading to avoid demo flash */
+  const displayAppts = loadingAppts ? [] : (liveAppts.length > 0 ? liveAppts : APPOINTMENTS);
 
   /* Dentist columns: DB active dentistas (or static fallback) — Problem 3 */
   const displayDentists = dbDentistas.filter(d => d.ativo).length > 0

@@ -118,14 +118,17 @@ function SignatureCanvas({
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    if (initialData) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0);
-      img.src = initialData;
-      setHasSig(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!initialData || !canvasRef.current) return;
+    const ctx = canvasRef.current.getContext("2d");
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.src = initialData;
+    setHasSig(true);
+  }, [initialData]);
 
   function getPos(e: React.MouseEvent | React.TouchEvent) {
     const canvas = canvasRef.current!;
@@ -420,9 +423,9 @@ function TratamentoModal({
       })));
       return financeiro;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["financeiro", pacienteId], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["parcelas",   pacienteId], refetchType: "all" });
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ["financeiro", pacienteId] });
+      await qc.refetchQueries({ queryKey: ["parcelas",   pacienteId] });
       toast.success(isEdit ? "Tratamento atualizado!" : "Tratamento registrado!");
       onClose();
     },

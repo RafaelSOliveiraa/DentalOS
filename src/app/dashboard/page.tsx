@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAllParcelas, fetchAgendamentosByDate, fetchPacientes } from "@/lib/queries";
 import {
   ComposedChart,
   Bar,
@@ -124,17 +126,25 @@ function Topbar() {
 // ── Row 1 — Financial KPIs ────────────────────────────────────────────────────
 
 function FinancialKPIs({ started }: { started: boolean }) {
-  const faturamento = useCountUp(0, started);
-  const lucro       = useCountUp(0, started);
-  const aReceber    = useCountUp(0, started);
-  const saldo       = useCountUp(0, started);
+  const { data: parcelas = [] } = useQuery({ queryKey: ["parcelas-todas"], queryFn: fetchAllParcelas, staleTime: 0 });
+
+  const mesAtual = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const pagas      = parcelas.filter(p => p.status === "pago" && (p.data_pagamento ?? "").startsWith(mesAtual));
+  const pendentes  = parcelas.filter(p => p.status !== "pago");
+  const faturValor = pagas.reduce((s, p) => s + (p.valor_pago ?? p.valor), 0);
+  const recebValor = pendentes.reduce((s, p) => s + p.valor, 0);
+
+  const faturamento = useCountUp(faturValor, started);
+  const lucro       = useCountUp(faturValor, started);
+  const aReceber    = useCountUp(recebValor, started);
+  const saldo       = useCountUp(faturValor, started);
 
   const cards = [
     {
       label: "Faturamento do mês",
       value: faturamento,
-      badge: "Sem dados",
-      badgeColor: "#6B7280",
+      badge: faturValor > 0 ? `${pagas.length} parcela${pagas.length !== 1 ? "s" : ""} recebida${pagas.length !== 1 ? "s" : ""}` : "Sem recebimentos",
+      badgeColor: faturValor > 0 ? "#1D9E75" : "#6B7280",
       Arrow: ArrowUpRight,
       Icon: TrendingUp,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
@@ -142,7 +152,7 @@ function FinancialKPIs({ started }: { started: boolean }) {
     {
       label: "Lucro líquido",
       value: lucro,
-      badge: "Sem dados",
+      badge: faturValor > 0 ? "Estimado (sem despesas)" : "Sem dados",
       badgeColor: "#6B7280",
       Arrow: ArrowUpRight,
       Icon: DollarSign,
@@ -151,8 +161,8 @@ function FinancialKPIs({ started }: { started: boolean }) {
     {
       label: "A receber",
       value: aReceber,
-      badge: "Sem dados",
-      badgeColor: "#6B7280",
+      badge: recebValor > 0 ? `${pendentes.length} parcela${pendentes.length !== 1 ? "s" : ""} pendente${pendentes.length !== 1 ? "s" : ""}` : "Em dia",
+      badgeColor: recebValor > 0 ? "#EF9F27" : "#1D9E75",
       Arrow: ArrowRight,
       Icon: CreditCard,
       iconCls: "text-[#EF9F27] bg-[#EF9F27]/10",
@@ -160,8 +170,8 @@ function FinancialKPIs({ started }: { started: boolean }) {
     {
       label: "Saldo em caixa",
       value: saldo,
-      badge: "Sem dados",
-      badgeColor: "#6B7280",
+      badge: faturValor > 0 ? "Receitas deste mês" : "Sem dados",
+      badgeColor: faturValor > 0 ? "#1D9E75" : "#6B7280",
       Arrow: ArrowUpRight,
       Icon: Wallet,
       iconCls: "text-[#1D9E75] bg-[#1D9E75]/10",
@@ -200,10 +210,26 @@ function FinancialKPIs({ started }: { started: boolean }) {
 // ── Row 2 — Operational KPIs ──────────────────────────────────────────────────
 
 function OperationalKPIs({ started }: { started: boolean }) {
-  const ocupacao = useCountUp(0, started);
-  const ticket   = useCountUp(0, started);
-  const faltas   = useCountUp(0, started);
-  const novos    = useCountUp(0, started);
+  const today    = new Date().toISOString().split("T")[0];
+  const mesAtual = today.slice(0, 7);
+
+  const { data: todayAppts  = [] } = useQuery({ queryKey: ["agendamentos", today],    queryFn: () => fetchAgendamentosByDate(today), staleTime: 0 });
+  const { data: pacientes   = [] } = useQuery({ queryKey: ["pacientes", "dashboard"], queryFn: () => fetchPacientes(),                staleTime: 0 });
+  const { data: parcelasTod = [] } = useQuery({ queryKey: ["parcelas-todas"],         queryFn: fetchAllParcelas,                      staleTime: 0 });
+
+  const ativos   = todayAppts.filter(a => a.status !== "cancelado");
+  const faltasCt = todayAppts.filter(a => a.status === "falta").length;
+  const novosCt  = pacientes.filter(p => p.created_at.startsWith(mesAtual)).length;
+  const faltasPct = ativos.length > 0 ? Math.round(faltasCt / ativos.length * 100) : 0;
+  const ocupacaoPct = Math.min(100, ativos.length > 0 ? Math.round(ativos.length / 10 * 100) : 0);
+
+  const pagas = parcelasTod.filter(p => p.status === "pago" && (p.data_pagamento ?? "").startsWith(mesAtual));
+  const ticketVal = pagas.length > 0 ? Math.round(pagas.reduce((s, p) => s + (p.valor_pago ?? p.valor), 0) / pagas.length) : 0;
+
+  const ocupacao = useCountUp(ocupacaoPct, started);
+  const ticket   = useCountUp(ticketVal,   started);
+  const faltas   = useCountUp(faltasPct,   started);
+  const novos    = useCountUp(novosCt,     started);
 
   return (
     <div className="grid grid-cols-4 gap-4">
@@ -240,7 +266,7 @@ function OperationalKPIs({ started }: { started: boolean }) {
           <>
             <p className="text-2xl font-bold text-white mb-1.5 tabular-nums">{fmt(ticket)}</p>
             <span className="inline-flex items-center gap-0.5 text-xs font-medium text-gray-500">
-              Sem dados
+              {ticketVal > 0 ? "Média por parcela recebida" : "Sem recebimentos este mês"}
             </span>
           </>
         ) : (
@@ -287,7 +313,7 @@ function OperationalKPIs({ started }: { started: boolean }) {
           <>
             <p className="text-2xl font-bold text-white mb-1.5 tabular-nums">{novos}</p>
             <span className="inline-flex items-center gap-0.5 text-xs font-medium text-gray-500">
-              Sem dados
+              {novosCt > 0 ? "este mês" : "Nenhum cadastrado este mês"}
             </span>
           </>
         ) : (
