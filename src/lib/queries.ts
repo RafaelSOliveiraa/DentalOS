@@ -321,3 +321,66 @@ export async function createEstoqueMov(
   if (error) throw error;
   return data;
 }
+
+/* ─── Consultas — update / delete ─── */
+export async function updateConsulta(
+  id: string,
+  payload: Partial<Omit<ConsultaRow, "id" | "created_at">>
+): Promise<ConsultaRow> {
+  const { data, error } = await getSupabase()
+    .from("consultas")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteConsulta(id: string): Promise<void> {
+  const { error } = await getSupabase().from("consultas").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* ─── Financeiro Paciente — update / delete ─── */
+export async function updateFinanceiroPaciente(
+  id: string,
+  payload: Partial<Omit<FinanceiroPacienteRow, "id" | "created_at">>
+): Promise<FinanceiroPacienteRow> {
+  const { data, error } = await getSupabase()
+    .from("financeiro_paciente")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteFinanceiroPaciente(id: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("financeiro_paciente")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteParcelasByTratamento(
+  financeiroPacienteId: string
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("parcelas")
+    .delete()
+    .eq("financeiro_paciente_id", financeiroPacienteId);
+  if (error) throw error;
+}
+
+/* ─── Parcelas — fetch all (relatórios) ─── */
+export async function fetchAllParcelas(): Promise<ParcelaRow[]> {
+  const { data, error } = await getSupabase()
+    .from("parcelas")
+    .select("*")
+    .order("vencimento");
+  if (error) throw error;
+  return data ?? [];
+}

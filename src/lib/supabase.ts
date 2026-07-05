@@ -102,6 +102,9 @@ export interface AnamneseRow {
   medicamentos: string | null;
   cirurgias: string | null;
   observacoes: string | null;
+  assinatura: string | null;
+  termo_aceito: boolean | null;
+  data_assinatura: string | null;
   updated_at: string;
 }
 

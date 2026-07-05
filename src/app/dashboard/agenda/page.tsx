@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -50,6 +50,16 @@ interface Appointment {
 
 /* ─── Grid constants ─── */
 const PIXELS_PER_MIN = 2;
+
+/** Convert a Y pixel position (from top of timeline column) to "HH:MM" snapped to 15 min. */
+function yToTime(yPx: number): string {
+  const totalMinutes = Math.max(0, Math.floor(yPx / PIXELS_PER_MIN));
+  const snapped = Math.round(totalMinutes / 15) * 15;
+  const clamped = Math.min(snapped, (END_HOUR - START_HOUR - 1) * 60);
+  const h = START_HOUR + Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 const START_HOUR = 7;
 const END_HOUR = 20;
 const TOTAL_HEIGHT = (END_HOUR - START_HOUR) * 60 * PIXELS_PER_MIN; // 1560px
@@ -223,9 +233,15 @@ const STATUS_BLOCK: Record<string, { opacity: number; stripe?: string; badge?: s
 function AppointmentBlock({
   appt,
   onClick,
+  onDragStart,
+  onDragEnd,
+  isDragging,
 }: {
   appt: Appointment;
   onClick: (a: Appointment) => void;
+  onDragStart?: (a: Appointment, e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
 }) {
   const top    = timeToY(appt.start);
   const height = timeDiffMin(appt.start, appt.end) * PIXELS_PER_MIN;
@@ -235,19 +251,21 @@ function AppointmentBlock({
 
   return (
     <div
+      draggable={!isBreak && !!onDragStart}
       onClick={() => !isBreak && onClick(appt)}
+      onDragStart={onDragStart && !isBreak ? e => onDragStart(appt, e) : undefined}
+      onDragEnd={onDragEnd}
       className={`absolute left-1 right-1 rounded-lg overflow-hidden select-none transition-all ${
-        isBreak ? "cursor-default" : "cursor-pointer hover:brightness-110"
+        isBreak ? "cursor-default" : "cursor-grab hover:brightness-110"
       }`}
       style={{
         top,
         height:  Math.max(height - 2, 22),
-        opacity: stVis.opacity,
+        opacity: isDragging ? 0.35 : stVis.opacity,
         background: isBreak ? "rgba(107,114,128,0.10)" : `${color}18`,
         border: `1px solid ${color}35`,
         borderLeft: `3px solid ${color}`,
-        zIndex: 10,
-        // strikethrough overlay for cancelled
+        zIndex: isDragging ? 1 : 10,
         ...(appt.status === "cancelado" ? { filter: "grayscale(0.4)" } : {}),
       }}
     >
@@ -569,12 +587,25 @@ function RemarcarModal({
     mutationFn: () => {
       if (!appt.dbId) throw new Error("ID do agendamento não disponível");
       const data_hora = new Date(`${novaData}T${novoHorario}:00`).toISOString();
+      // Preserve original duration when rescheduling
+      const durationMin = timeDiffMin(appt.start, appt.end);
+      const [h, m] = novoHorario.split(":").map(Number);
+      const endMin = h * 60 + m + durationMin;
+      const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
       return updateAgendamento(appt.dbId, {
-        data:      novaData,
-        hora:      novoHorario,
+        data:              novaData,
+        hora:              novoHorario,
+        hora_fim:          horaFim,
         data_hora,
-        observacoes: motivo || null,
-        status:    "remarcado",
+        // Preserve all patient/dentist/procedure fields
+        paciente_nome:     appt.patient,
+        dentista_nome:     appt.dentistName ?? null,
+        procedimento:      appt.procedure,
+        tipo_procedimento: appt.procedure,
+        cor:               PROC_COLOR[appt.procedure] ?? null,
+        confirmado:        appt.confirmed,
+        observacoes:       motivo || null,
+        status:            "remarcado",
       });
     },
     onSuccess: () => {
@@ -996,10 +1027,14 @@ export default function AgendaPage() {
   const [newApptTime,    setNewApptTime]    = useState("09:00");
   const [view,           setView]           = useState<"dia" | "semana">("dia");
   const [activeDate,     setActiveDate]     = useState(() => new Date().toISOString().split("T")[0]);
+  const [draggingId,     setDraggingId]     = useState<number | null>(null);
+  const dragApptRef = useRef<Appointment | null>(null);
   const TODAY = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   const timelineRef  = useRef<HTMLDivElement>(null);
   const currentTimeY = useCurrentTimeY();
+
+  const qc = useQueryClient();
 
   /* ── Supabase queries ── */
   const { data: dbDentistas = [] } = useQuery({
@@ -1029,6 +1064,60 @@ export default function AgendaPage() {
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekDates, weekResults, dbDentistas]);
+
+  /* ── Drag-and-drop mutation ── */
+  const dropMut = useMutation({
+    mutationFn: ({ appt, newTime, newDentistKey }: { appt: Appointment; newTime: string; newDentistKey: DentistKey }) => {
+      if (!appt.dbId) throw new Error("Agendamento demo — não é possível mover");
+      const durationMin = timeDiffMin(appt.start, appt.end);
+      const [h, m] = newTime.split(":").map(Number);
+      const endMin  = h * 60 + m + durationMin;
+      const horaFim = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+      const data_hora = new Date(`${activeDate}T${newTime}:00`).toISOString();
+      const dentistRecord = dbDentistas.find(d => d.id === newDentistKey);
+      const dentistaNome  = dentistRecord?.nome ?? appt.dentistName ?? null;
+      return updateAgendamento(appt.dbId, {
+        hora:              newTime,
+        hora_fim:          horaFim,
+        data_hora,
+        dentista_nome:     dentistaNome,
+        paciente_nome:     appt.patient,
+        procedimento:      appt.procedure,
+        tipo_procedimento: appt.procedure,
+        cor:               PROC_COLOR[appt.procedure] ?? null,
+        confirmado:        appt.confirmed,
+        status:            appt.status ?? "agendado",
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agendamentos", activeDate], refetchType: "all" });
+      toast.success("Agendamento movido!");
+    },
+    onError: (e: Error) => toast.error(`Erro ao mover: ${e.message}`),
+  });
+
+  const handleDragStart = useCallback((appt: Appointment, e: React.DragEvent) => {
+    dragApptRef.current = appt;
+    setDraggingId(appt.id);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+    dragApptRef.current = null;
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, dentistKey: DentistKey) => {
+    e.preventDefault();
+    const appt = dragApptRef.current;
+    if (!appt) return;
+    const colRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const yPx = e.clientY - colRect.top;
+    const newTime = yToTime(yPx);
+    dropMut.mutate({ appt, newTime, newDentistKey: dentistKey });
+    setDraggingId(null);
+    dragApptRef.current = null;
+  }, [dropMut]);
 
   /* Map DB agendamentos → local Appointment shape (day view) */
   const liveAppts: Appointment[] = dbAgendamentos.map(a => mapRowToAppt(a, dbDentistas));
@@ -1273,6 +1362,8 @@ export default function AgendaPage() {
                       key={d.key}
                       className="flex-1 relative border-r border-white/[0.04] last:border-r-0"
                       style={{ height: TOTAL_HEIGHT }}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => handleDrop(e, d.key)}
                     >
                       {/* Hour grid lines */}
                       {HOUR_LABELS.map(h => (
@@ -1335,6 +1426,9 @@ export default function AgendaPage() {
                           key={appt.id}
                           appt={appt}
                           onClick={setSelectedAppt}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                          isDragging={draggingId === appt.id}
                         />
                       ))}
                     </div>

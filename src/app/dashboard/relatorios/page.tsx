@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAllParcelas } from "@/lib/queries";
 import {
   LayoutDashboard, CalendarDays, Users, DollarSign, Package,
   Settings, BrainCircuit, BarChart2, Download, FileSpreadsheet,
@@ -219,6 +221,25 @@ function StatusCell({ status, pct }: { status: KpiStatus; pct: string }) {
 export default function RelatoriosPage() {
   const [period, setPeriod] = useState<Period>("Este mês");
 
+  /* Real financial data from Supabase */
+  const { data: todasParcelas = [] } = useQuery({
+    queryKey: ["parcelas-todas"],
+    queryFn:  fetchAllParcelas,
+  });
+
+  const parcelasPagas   = todasParcelas.filter(p => p.status === "pago");
+  const parcelasPendentes = todasParcelas.filter(p => p.status !== "pago");
+  const totalRecebido   = parcelasPagas.reduce((s, p) => s + (p.valor_pago ?? p.valor), 0);
+  const totalAReceber   = parcelasPendentes.reduce((s, p) => s + p.valor, 0);
+  const totalGeral      = totalRecebido + totalAReceber;
+
+  // Group received by payment method
+  const porForma: Record<string, number> = {};
+  parcelasPagas.forEach(p => {
+    const f = p.forma_pagamento ?? "Outros";
+    porForma[f] = (porForma[f] ?? 0) + (p.valor_pago ?? p.valor);
+  });
+
   /* Slice data by selected period */
   const periodSlice: ComparativoRow[] =
     period === "Este mês"         ? COMPARATIVE.slice(-1)
@@ -282,13 +303,29 @@ export default function RelatoriosPage() {
 
         <div className="p-6 space-y-6">
 
-          {/* Line 1 — Summary KPIs */}
+          {/* Line 1 — Summary KPIs (dados reais) */}
           <div className="grid grid-cols-4 gap-4">
-            <SummaryCard icon={DollarSign} label="Faturamento total"  value={fmtBRL(totFat)}   sub={periodSubLabel}              accent="#1D9E75" />
-            <SummaryCard icon={TrendingUp} label="Lucro líquido"      value={fmtBRL(totLucro)} sub={`margem ${avgMargem}%`}      accent="#5B8DEF" />
-            <SummaryCard icon={Calendar}   label="Total de consultas"  value={String(totCons)}   sub={`ticket médio R$ ${avgTicket}`} accent="#EF9F27" />
-            <SummaryCard icon={Users}      label="Taxa de faltas"      value={`${avgFaltas}%`}   sub={`meta: abaixo de 7%`}       accent="#9B6DFF" />
+            <SummaryCard icon={DollarSign}  label="Total recebido"  value={fmtBRL(totalRecebido)} sub={`${parcelasPagas.length} parcelas pagas`}    accent="#1D9E75" />
+            <SummaryCard icon={TrendingDown} label="A receber"       value={fmtBRL(totalAReceber)} sub={`${parcelasPendentes.length} parcelas pendentes`} accent="#EF9F27" />
+            <SummaryCard icon={TrendingUp}   label="Faturamento total" value={fmtBRL(totalGeral)} sub="recebido + pendente"                           accent="#5B8DEF" />
+            <SummaryCard icon={Users}        label="Taxa de recebimento" value={totalGeral > 0 ? `${Math.round((totalRecebido / totalGeral) * 100)}%` : "—"} sub="do total faturado" accent="#9B6DFF" />
           </div>
+
+          {/* Financeiro por forma de pagamento */}
+          {Object.keys(porForma).length > 0 && (
+            <div className="rounded-2xl border border-white/[0.06] p-5" style={{ background: "#131726" }}>
+              <h3 className="text-white font-semibold text-sm mb-4">Recebimentos por forma de pagamento</h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {Object.entries(porForma).map(([forma, valor]) => (
+                  <div key={forma} className="rounded-xl border border-white/[0.06] p-4" style={{ background: "#0C0F1A" }}>
+                    <p className="text-xs text-white/40 mb-1">{forma}</p>
+                    <p className="text-lg font-bold text-white">{fmtBRL(valor)}</p>
+                    <p className="text-[10px] text-white/25 mt-0.5">{totalRecebido > 0 ? `${Math.round((valor / totalRecebido) * 100)}%` : "—"} do total</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Line 2 — Charts */}
           <div className="grid grid-cols-2 gap-6">
